@@ -214,23 +214,26 @@ def process_sdf_block(index, block, config):
     mol_id_prop = config["mol_id_prop"]
     gen_ids = config["gen_ids"]
     suppl = Chem.ForwardSDMolSupplier(io.BytesIO(block.encode('utf-8')))
-    mols = list(suppl)
-    mol_id = None
-    if len(mols) > 0:
-        if mol_id_prop is not None:
-            try:
-                mol_id = mols[0].GetProp(mol_id_prop)
-            except KeyError:
-                pass
-            if mol_id is None:
-                if config["show_warning"]:
-                    config["show_warning"] = False
-                    print(f"WARNING: {mol_id_prop} not found in the sdf file! using the index as mol_id instead.")
-                
-        if gen_ids or mol_id is None:
-            mol_id = index
+    mol = list(suppl)[0]
 
-    return str(mol_id), mols[0], Chem.MolToSmiles(mols[0])
+    if mol is None:
+        return str(index), None, None
+    
+    mol_id = None
+    if mol_id_prop is not None:
+        try:
+            mol_id = mol.GetProp(mol_id_prop)
+        except:
+            pass
+        if mol_id is None:
+            if config["show_warning"]:
+                config["show_warning"] = False
+                print(f"WARNING: {mol_id_prop} not found in the sdf file! using the index as mol_id instead.")
+            
+    if gen_ids or mol_id is None:
+        mol_id = index
+
+    return str(mol_id), mol, Chem.MolToSmiles(mol)
 
 def process_iterable_entity(index, entity, config):
     """A function that processes a block of iterable entities and generates molecular identifiers, RDKit molecules, and SMILES strings.
