@@ -125,27 +125,32 @@ void InnerClusteringAgent::_doInnerClustering(int popCount, h5::Group *popcountG
 }
 
 void InnerClusteringAgent::_addFingerprintToCluster(uint64_t *currentFP, int popCount, std::vector<utils::dt_inner_clusters_fingerprints> &clusters) {
-    uint64_t common_popcnt = 0;
+    uint64_t common_popcnt = 0, num_clusters = clusters.size();
     float dist_factor = 0; // in place of real distance, we calculate factor, which avoid division operation
     int fp_end_index = _fpstore->_molIdOffset + _fpstore->_fpSize;
-    int32_t clusterId = -1, num_clusters = clusters.size(), ic = 0;
+    int32_t clusterId = -1;
 
     if (num_clusters > 1000 && _parallel){ // parallel version when the number of clusters is large
-        #pragma omp parallel for default(none) shared(clusterId, clusters, num_clusters, currentFP, _fpstore) private(common_popcnt, dist_factor, ic)
-        for(ic = 0; ic < num_clusters; ic++) {
-            if (clusterId != -1) continue;
-
-            uint64_t *clusterFP = clusters[ic].clusterFp;
-            common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, currentFP + _fpstore->_molIdOffset, _fpstore->_fpSize);
-            dist_factor = _fpstore->_innerClusteringThreshold *  (currentFP[_fpstore->_CFPPopCountIndex] + clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
-            if (common_popcnt >= dist_factor) {
-                clusterId = ic;
-                #pragma omp cancel for
+        #pragma omp parallel default(none) shared(clusterId, clusters, num_clusters, currentFP, _fpstore)
+        {
+            uint64_t common_popcnt = 0;
+            float dist_factor = 0; // in place of real distance, we calculate factor, which avoid division operation
+            #pragma omp for 
+            for(uint64_t ic = 0; ic < num_clusters; ic++) {
+                uint64_t *clusterFP = clusters[ic].clusterFp;
+                common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, currentFP + _fpstore->_molIdOffset, _fpstore->_fpSize);
+                dist_factor = _fpstore->_innerClusteringThreshold *  (currentFP[_fpstore->_CFPPopCountIndex] + clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
+                if (common_popcnt >= dist_factor) {
+                    #pragma omp atomic write
+                    clusterId = ic;
+                    #pragma omp cancel for
+                }
+                #pragma omp cancellation point for
             }
-
         }
+
     } else {
-        for(ic = 0; ic < num_clusters; ic++) {
+        for(uint64_t ic = 0; ic < num_clusters; ic++) {
             uint64_t *clusterFP = clusters[ic].clusterFp;
             common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, currentFP + _fpstore->_molIdOffset, _fpstore->_fpSize);
             dist_factor = _fpstore->_innerClusteringThreshold *  (currentFP[_fpstore->_CFPPopCountIndex] + clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
@@ -244,27 +249,34 @@ void InnerClusteringAgent::performInnerClusteringAfterUpdate(std::set<int> modif
     std::cout << " ... inner clustering done. Time taken: " << (utils::get_posix_clock_time() - start_time) / (1000 *60) << " mins." << std::endl;
 }
 
-void InnerClusteringAgent::_addFingerprintToClusterDiskMemory(uint64_t *currentFP, uint64_t cfpIndex, int popCount, std::vector<utils::dt_inner_clusters_fingerprints> &clusters, std::vector<uint64_t> &cFpIndexToClusterID) {
-    uint64_t common_popcnt = 0;
+void InnerClusteringAgent::_addFingerprintToClusterDiskMemory(uint64_t *currentFP, uint64_t cfpIndex, int popCount, 
+                                                              std::vector<utils::dt_inner_clusters_fingerprints> &clusters, 
+                                                              std::vector<uint64_t> &cFpIndexToClusterID) {
+    uint64_t common_popcnt = 0, num_clusters = clusters.size();
     float dist_factor = 0; // in place of real distance, we calculate factor, which avoid division operation
     int fp_end_index = _fpstore->_molIdOffset + _fpstore->_fpSize;
-    int clusterId = -1, num_clusters = clusters.size(), ic = 0;
+    uint32_t clusterId = -1;
 
     if (num_clusters > 1000 && _parallel){ // parallel version when number of clusters is large
-        #pragma omp parallel for default(none) shared(clusterId, clusters, num_clusters, currentFP, _fpstore) private(common_popcnt, dist_factor, ic)
-        for(ic = 0; ic < num_clusters; ic++) {
-            if (clusterId == -1) {
+        #pragma omp parallel default(none) shared(clusterId, clusters, num_clusters, currentFP, _fpstore)
+        {   
+            uint64_t common_popcnt = 0;
+            float dist_factor = 0;
+            #pragma omp for 
+            for(uint64_t ic = 0; ic < num_clusters; ic++) {
                 uint64_t *clusterFP = clusters[ic].clusterFp;
                 common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, currentFP + _fpstore->_molIdOffset, _fpstore->_fpSize);
                 dist_factor = _fpstore->_innerClusteringThreshold * (currentFP[_fpstore->_CFPPopCountIndex] + clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
-                if (common_popcnt >=  dist_factor) {
+                if (common_popcnt >= dist_factor) {
+                    #pragma omp atomic write
                     clusterId = ic;
                     #pragma omp cancel for
                 }
+                #pragma omp cancellation point for
             }
         }
     } else {
-        for(ic = 0; ic < num_clusters; ic++) {
+        for(uint64_t ic = 0; ic < num_clusters; ic++) {
             uint64_t *clusterFP = clusters[ic].clusterFp;
             common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, currentFP + _fpstore->_molIdOffset, _fpstore->_fpSize);
             dist_factor = _fpstore->_innerClusteringThreshold * (currentFP[_fpstore->_CFPPopCountIndex] + clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
