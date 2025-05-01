@@ -229,7 +229,6 @@ std::vector<utils::dt_mol_fp_data> FingerprintStore::_buildSortedMolFpData(const
     // transformed mol and fp data from input
     std::vector<utils::dt_mol_fp_data> mol_fp_data;
     int32_t num_fps = fingerprints.size();
-    std::cout<<"Number of fingerprints: " << num_fps << std::endl;
     
     // initialization
     mol_fp_data.reserve(num_fps);
