@@ -135,3 +135,20 @@ class UFFPSimSearchEngine(uffpsimLib.FPSearchEngineBase):
         """
         fp = self.fp_calculator(load_molecule(mol_data)[0])
         return uffpsimLib.getCompactFingerPrintArray(fp)
+    
+    def get_smiles_for_id(self, id):
+        """
+        Retrieves the SMILES representation of a molecule using its identifier.
+
+        Parameters
+        ----------
+        id : str
+            The identifier of the molecule.
+
+        Returns
+        -------
+        str
+            The SMILES representation of the molecule.
+
+        """
+        return self.fp_store.get_smiles_for_id(id)
