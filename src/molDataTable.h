@@ -4,6 +4,7 @@
  */
 
 #include <vector>
+#include <unordered_map>
 #include <hdf5.h>
 #include <hdf5_hl.h>
 #include <stdlib.h>
@@ -69,6 +70,9 @@ class MolDataTable {
         hsize_t _chunk_size = 1000;
         int _compress = 1;
 
+        std::unordered_map<std::string, uint64_t> _molIdToIndexMap; // molecule ID to molDataTable index mapping
+        bool _isMolIdToIndexMapBuilt = false; // flag to check if the mapping is built
+
         /**
          * This private method is responsible for setting up the data types for the fields in the `MoleculeDataTable`.
          * It initializes the HDF5 types for the ID, popcount, fpIndex, and SMILES fields, and stores them in the `_field_types` array.
@@ -132,6 +136,8 @@ class MolDataTable {
          * Note: The append method assumes that the table and data types have already been initialized and set up.
          */
         bool append(TMolData *moldata, int nrecord);
+
+        void buildMolIdToIndexMap();
 
         /**
          * The getIndexOfMolDataFromID method is responsible for retrieving the index of mol_id in the `MoleculeDataTable`

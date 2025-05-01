@@ -86,105 +86,39 @@ bool MolDataTable::append(TMolData *moldata, int nrecord)
         ret = _createTable(moldata, nrecord);
     }
 
-    // Exploitation of b-tree algorithm in HDF5 for faster retrieval of records by mol_id
-    // where mol_id is splitted into sub-paths and stored as parent-child groups.
-    // Each group has two groups as `datasets` and `paths`. `paths` group contains all subsequent sub-paths.
-    // `datasets` group contains actual data i.e. index in MolDataTable for this mol_id.
-    if (ret >= 0){
-        h5::Group *molDataIndexGroup = utils::createOrOpenGroup(_root_group, "molDataTableIndex");
-        for(int n=0; n < nrecord; n++) {
-            const uint64_t index[1] = { (uint64_t) _nrecords};
-            std::vector<size_t> dims = {1};
-            
-            std::vector<std::string> pathVector = _molIdToIndexDataPath(moldata[n].id);
-            if (pathVector.size() == 0) { // if only one sub-path it is mol_id and put it in datasets
-                h5::Group *group = utils::createOrOpenGroup(molDataIndexGroup, "datasets");
-                utils::addDataSetToH5(group, moldata[n].id, h5::PredType::NATIVE_UINT64, index, dims );
-                group->close();
-                delete group;
-            } else { // if multiple sub-paths, create parent-child groups and put it in paths, datasets
-                std::vector<h5::Group*> pathGroups;
-                h5::Group *group = nullptr;
-                for(size_t g = 0; g < pathVector.size()-1; g++) { // create parent-child groups through `paths` group
-                    if (g == 0) {
-                        group = utils::createOrOpenGroup(molDataIndexGroup, "paths");
-                        pathGroups.push_back(group);
-                        group = utils::createOrOpenGroup(group, pathVector[g]);
-                    } else {
-                        group = utils::createOrOpenGroup(pathGroups[g-1], "paths");
-                        pathGroups.push_back(group);
-                        group = utils::createOrOpenGroup(group, pathVector[g]);
-                    }
-                    pathGroups.push_back(group);
-                }
-                
-                if (group != nullptr) {// last of the path, put it in datasets
-                    h5::Group *datasetGroup = utils::createOrOpenGroup(group, "datasets");
-                    utils::addDataSetToH5(datasetGroup, pathVector[pathVector.size()-1], h5::PredType::NATIVE_UINT64, index, dims );
-                    datasetGroup->close();
-                    delete datasetGroup;
-                }
-
-                for(auto &grp: pathGroups) {
-                    grp->close();
-                    delete grp;
-                }
-                pathGroups.resize(0);
-            }
-            
-            _nrecords += 1;
-        }
-        molDataIndexGroup->close();
-        delete molDataIndexGroup;
-    }
-
     return ret < 0 ? false : true;
 }
 
-std::vector<uint64_t> MolDataTable::getIndexOfMolDataFromID(std::string id) {
-    h5::Group *molDataIndexGroup = utils::createOrOpenGroup(_root_group, "molDataTableIndex");
-    std::vector<std::string> pathVector = _molIdToIndexDataPath(id.c_str()); // first split mol_id into sub-paths
-    std::vector<uint64_t> index;
-
-    if (pathVector.size() == 0) { // if only one sub-path it is mol_id and get it from datasets
-        h5::Group *group = utils::createOrOpenGroup(molDataIndexGroup, "datasets");
-        
-        if(group->nameExists(id)) {
-            utils::readDataSetFromH5(group, id, H5::PredType::NATIVE_UINT64, index);
-        }
-        delete group;
-    } else { // if multiple sub-paths, get it from sub-paths, and end datasets
-        std::vector<h5::Group*> pathGroups;
-        h5::Group *group = nullptr;
-        for(size_t g = 0; g < pathVector.size()-1; g++) { // get parent-child groups through `paths` group
-            if (g == 0) {
-                group = utils::createOrOpenGroup(molDataIndexGroup, "paths");
-                pathGroups.push_back(group);
-                group = utils::createOrOpenGroup(group, pathVector[g]);
-            } else {
-                group = utils::createOrOpenGroup(pathGroups[g-1], "paths");
-                pathGroups.push_back(group);
-                group = utils::createOrOpenGroup(group, pathVector[g]);
-            }
-            pathGroups.push_back(group);
-        }
-
-        if (group->nameExists("datasets")) { // reached last of the path, get it from datasets
-            h5::Group *datasetGroup = utils::createOrOpenGroup(group, "datasets");
-            std::string datasetName = pathVector[pathVector.size()-1];
-            if(datasetGroup->nameExists(datasetName)) {
-                utils::readDataSetFromH5(datasetGroup, datasetName, H5::PredType::NATIVE_UINT64, index);
-            }
-            delete datasetGroup;
-        }
-
-
-        for(auto &grp: pathGroups) {
-            delete grp;
-        }
-        pathGroups.resize(0);
+void MolDataTable::buildMolIdToIndexMap() {
+    if (_isMolIdToIndexMapBuilt) {
+        std::cout << " MolIdToIndexMap already built, skipping..." << std::endl;
+        return;
     }
-    
+
+    std::cout << " Building map for molecule Id to index in molecule data table..." << std::endl;
+    TMolData molData;
+    for(hsize_t i = 0; i < _nrecords; i++) {
+        H5TBread_records(_loc_id, table_name, i, 1, _row_total_size_bytes, _row_offset_bytes, _row_fields_size_bytes, &molData);
+        std::string id = molData.id;
+        _molIdToIndexMap[id] = i;
+    }
+
+    _isMolIdToIndexMapBuilt = true;
+    std::cout << " ... finished building map." << std::endl;
+}
+
+std::vector<uint64_t> MolDataTable::getIndexOfMolDataFromID(std::string id) {
+    buildMolIdToIndexMap();
+
+    std::vector<uint64_t> index;
+    auto it = _molIdToIndexMap.find(id);
+    if (it != _molIdToIndexMap.end()) {
+        index.push_back(it->second);
+    } else {
+        std::cerr << "Molecule id '"<<id<<"' not found in molecule data table" << std::endl;
+    }
+
+    // if id not found in the table, index will be empty
     return index;
 };
 

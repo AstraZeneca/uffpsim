@@ -31,9 +31,9 @@ def test_create_database():
     assert json.loads(fp_store.info) == info
 
     # check smiles from id
-    assert fp_store.get_smiles_from_id("1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl'
-    assert fp_store.get_smiles_from_id("5") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1'
-    assert fp_store.get_smiles_from_id("10") == 'c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2'
+    assert fp_store.get_smiles_for_id("1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl'
+    assert fp_store.get_smiles_for_id("5") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1'
+    assert fp_store.get_smiles_for_id("10") == 'c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2'
 
     fp_store.close()
 
@@ -79,9 +79,9 @@ def test_mol_id_clustering():
     fp_store = uffpsimLib.FingerprintStore(db_file)
 
     # check smiles from id
-    assert fp_store.get_smiles_from_id("ID1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl'
-    assert fp_store.get_smiles_from_id("ID5") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1'
-    assert fp_store.get_smiles_from_id("ID10") == 'c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2'
+    assert fp_store.get_smiles_for_id("ID1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl'
+    assert fp_store.get_smiles_for_id("ID5") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1'
+    assert fp_store.get_smiles_for_id("ID10") == 'c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2'
 
     fp_store.close()
 
@@ -102,8 +102,8 @@ def test_update_fpstore():
     fp_store = uffpsimLib.FingerprintStore(db_file)
 
     # check smiles from id
-    assert fp_store.get_smiles_from_id("ID1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl'
-    assert fp_store.get_smiles_from_id("ID3") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1'
+    assert fp_store.get_smiles_for_id("ID1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl'
+    assert fp_store.get_smiles_for_id("ID3") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1'
 
     fp_store.close()
 
@@ -117,8 +117,8 @@ def test_update_fpstore():
     fp_store = uffpsimLib.FingerprintStore(db_file)
 
     # check updated smiles from id
-    assert fp_store.get_smiles_from_id("ID1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccncc1Cl'
-    assert fp_store.get_smiles_from_id("ID3") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1cnc(Cl)cc1'
+    assert fp_store.get_smiles_for_id("ID1") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccncc1Cl'
+    assert fp_store.get_smiles_for_id("ID3") == 'Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1cnc(Cl)cc1'
 
     fp_store.close()
     

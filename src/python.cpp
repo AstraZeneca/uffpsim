@@ -35,7 +35,7 @@ PYBIND11_MODULE(uffpsimLib, m) {
         .def("redo_clustering_write", &FingerprintStore::reDoInnerClusteringInMemory, FpStoreReDoInnerClusteringInMemory, py::call_guard<py::gil_scoped_release>())
         .def("magic_number_exists", &FingerprintStore::magicNumberExists, FpStoreMagicNumberExistsDoc)
         .def("set_magic_number", &FingerprintStore::setMagicNumber, FpStoreSetMagicNumberDoc)
-        .def("get_smiles_from_id", &FingerprintStore::getSmilesFromID, FpStoreGetSmilesFromIdDoc)
+        .def("get_smiles_for_id", &FingerprintStore::getSmilesFromID, FpStoreGetSmilesFromIdDoc)
         .def("update_fingerprints", &FingerprintStore::updateFingerprints, FpStoreUpdateFingerprintsDoc)
         .def("load_data_in_memory", &FingerprintStore::loadDataInMemory, FpStoreLoadDataInMemoryDoc)
         .def("close", &FingerprintStore::close, FpStoreCloseDoc);
