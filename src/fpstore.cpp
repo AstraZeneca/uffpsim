@@ -209,6 +209,11 @@ void FingerprintStore::_populateClustersInMemory(int popCount, utils::dt_inner_c
 }
 
 void FingerprintStore::AppendFingerprints(const std::vector<std::tuple<std::string, std::string, std::string>> fingerprints) {
+    if (fingerprints.size() == 0) {
+        std::cerr << "Warning: No fingerprints to append!" << std::endl;
+        return;
+    }
+
     // transformed mol and fp data from input
     std::vector<utils::dt_mol_fp_data> mol_fp_data = _buildSortedMolFpData(fingerprints);
 
@@ -224,6 +229,7 @@ std::vector<utils::dt_mol_fp_data> FingerprintStore::_buildSortedMolFpData(const
     // transformed mol and fp data from input
     std::vector<utils::dt_mol_fp_data> mol_fp_data;
     int32_t num_fps = fingerprints.size();
+    std::cout<<"Number of fingerprints: " << num_fps << std::endl;
     
     // initialization
     mol_fp_data.reserve(num_fps);

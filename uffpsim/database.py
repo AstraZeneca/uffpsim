@@ -91,9 +91,10 @@ def create_database(input_file: str, db_file: str, fp_type: str, fp_params: Dict
                 sys.stdout.write(f"\r Added {total_processed} fingerprints. Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...")
                 sys.stdout.flush()
 
-        total_processed += len(fps)
-        fpstore.append_fingerprints(fps)
-        elapsed_time = datetime.now() - start_time
+        if len(fps) > 0:
+            total_processed += len(fps)
+            fpstore.append_fingerprints(fps)
+            elapsed_time = datetime.now() - start_time
         sys.stdout.write("\r Finished adding fingerprints\n")
         sys.stdout.write(f" Total fingerprints added: {total_processed};  Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...\n")
         sys.stdout.flush()
@@ -180,9 +181,10 @@ def create_database_parallel(input_file: str, db_file: str, fp_type: str, worker
                 sys.stdout.write(f"\r Added {total_processed} fingerprints. Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...")
                 sys.stdout.flush()
 
-        total_processed += len(fps)
-        fpstore.append_fingerprints(fps)
-        elapsed_time = datetime.now() - start_time
+        if len(fps) > 0:
+            total_processed += len(fps)
+            fpstore.append_fingerprints(fps)
+            elapsed_time = datetime.now() - start_time
         sys.stdout.write("\n Finished adding fingerprints\n")
         sys.stdout.write(f" Total fingerprints added: {total_processed};  Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...\n")
         sys.stdout.flush()
