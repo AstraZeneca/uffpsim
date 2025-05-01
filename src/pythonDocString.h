@@ -72,10 +72,20 @@ Return
 bool (True/False) if the magic number is successfully set, false otherwise.
 )%";
 
+const char* FpStorebuildMolIdToIndexMap = R"%(Build the mapping of Molecule ID to index in molecule data table.
+
+This method builds a map that associates each molecule ID with its corresponding index in the molecule data table.
+This is required to access SMILES based on the given molecule ID.
+
+)%";
+
 const char* FpStoreGetSmilesFromIdDoc = R"%(Retrieves the SMILES string associated with a given molecular ID from the HDF5 file.
 
 This method takes a molecular ID as input and searches for the corresponding molecular data in the HDF5 file.\
 It then retrieves the SMILES string associated with the given molecular ID.
+
+.. note: if mapping of molecule-id to index in molecule data table is not performed, it is performed in the background. To perform this mapping,
+         use :func:`build_mol_id_to_index_map()`.
 
 Parameters
 ----------

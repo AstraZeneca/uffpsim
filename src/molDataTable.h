@@ -137,6 +137,14 @@ class MolDataTable {
          */
         bool append(TMolData *moldata, int nrecord);
 
+        /**
+         * @brief Builds a mapping from molecular IDs to their corresponding indices in the molecular data table.
+         *
+         * This method creates an internal map that associates each molecular ID with its index in the molecular data table.
+         * The mapping is used for efficient lookup and retrieval of molecular data based on molecular IDs.
+         *
+         * @return None.
+         */
         void buildMolIdToIndexMap();
 
         /**

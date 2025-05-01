@@ -358,6 +358,18 @@ public:
     void reDoInnerClusteringInMemory(float threshold);
 
     /**
+     * @brief Builds a mapping from molecular IDs to their corresponding indices in the molecular data table.
+     *
+     * This method creates an internal map that associates each molecular ID with its index in the molecular data table.
+     * The mapping is used for efficient lookup and retrieval of molecular data based on molecular IDs.
+     *
+     * The method relies on the `buildMolIdToIndexMap` function of the `MolDataTable` class to perform the mapping.
+     *
+     * @return None.
+     */
+    void buildMolIdToIndexMap() { _molDataTable->buildMolIdToIndexMap(); }
+
+    /**
      * @brief Retrieves the SMILES string associated with a given molecular ID from the HDF5 file.
      *
      * This method takes a molecular ID as input and searches for the corresponding molecular data in the HDF5 file.

@@ -91,17 +91,22 @@ bool MolDataTable::append(TMolData *moldata, int nrecord)
 
 void MolDataTable::buildMolIdToIndexMap() {
     if (_isMolIdToIndexMapBuilt) {
-        std::cout << " MolIdToIndexMap already built, skipping..." << std::endl;
         return;
     }
 
     std::cout << " Building map for molecule Id to index in molecule data table..." << std::endl;
-    TMolData molData;
-    for(hsize_t i = 0; i < _nrecords; i++) {
-        H5TBread_records(_loc_id, table_name, i, 1, _row_total_size_bytes, _row_offset_bytes, _row_fields_size_bytes, &molData);
-        std::string id = molData.id;
-        _molIdToIndexMap[id] = i;
+    _molIdToIndexMap.reserve(_nrecords); // reserve space for the map
+    hsize_t chunk_size = 1000000;
+    TMolData *molData = new TMolData[chunk_size];
+    for(hsize_t i = 0; i < _nrecords; i+=chunk_size) {
+        hsize_t num_to_read = std::min(_nrecords - i, chunk_size);
+        H5TBread_records(_loc_id, table_name, i, num_to_read, _row_total_size_bytes, _row_offset_bytes, _row_fields_size_bytes, molData);
+        for (hsize_t j = 0; j < num_to_read; j++) {
+            std::string id = molData[j].id;
+            _molIdToIndexMap[id] = i + j;
+        }
     }
+    delete[] molData;
 
     _isMolIdToIndexMapBuilt = true;
     std::cout << " ... finished building map." << std::endl;
