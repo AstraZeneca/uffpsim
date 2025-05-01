@@ -36,6 +36,7 @@ PYBIND11_MODULE(uffpsimLib, m) {
         .def("magic_number_exists", &FingerprintStore::magicNumberExists, FpStoreMagicNumberExistsDoc)
         .def("set_magic_number", &FingerprintStore::setMagicNumber, FpStoreSetMagicNumberDoc)
         .def("get_smiles_for_id", &FingerprintStore::getSmilesFromID, FpStoreGetSmilesFromIdDoc)
+        .def("build_mol_id_to_index_map", &FingerprintStore::buildMolIdToIndexMap, FpStorebuildMolIdToIndexMap)
         .def("update_fingerprints", &FingerprintStore::updateFingerprints, FpStoreUpdateFingerprintsDoc)
         .def("load_data_in_memory", &FingerprintStore::loadDataInMemory, FpStoreLoadDataInMemoryDoc)
         .def("close", &FingerprintStore::close, FpStoreCloseDoc);

@@ -152,3 +152,14 @@ class UFFPSimSearchEngine(uffpsimLib.FPSearchEngineBase):
 
         """
         return self.fp_store.get_smiles_for_id(id)
+    
+    def build_mol_id_to_index_map(self):
+        """
+        Builds a mapping of molecule identifiers to their corresponding indices in the database.
+
+        Returns
+        -------
+        None
+
+        """
+        return self.fp_store.build_mol_id_to_index_map()
