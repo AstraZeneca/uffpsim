@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Tuple
 from datetime import datetime
 import json
 import sys
+import glob
+import os
 
 from . import mol_fp_supplier, mol_fp_parallel_supplier, FPCalculator
 from . import uffpsimLib
@@ -196,6 +198,71 @@ def create_database_parallel(input_file: str, db_file: str, fp_type: str, worker
         raise e
 
     fpstore.close()
+
+def create_database_from_files(input_files: List[str], db_file: str, fp_type: str, workers= 1, fp_params: Dict[str, Any] = None, 
+                    gen_ids: bool = True, mol_id_prop=None, mol_id_max_chars: int = 15, info: dict[str, Any] | str = "",
+                    inner_clustering_threshold: float = 0.2, cluster_mode: str = "memory", cluster_parallel: bool = False):
+    
+    fp_calculator = FPCalculator(fp_type, fp_params)
+    fp_params_json = json.dumps({"fp_type": fp_calculator.type, "fp_params": fp_calculator.parameters})
+    if isinstance(info, dict):
+        info = json.dumps(info)
+
+    fpstore = uffpsimLib.FingerprintStore(db_file, mol_id_max_chars=mol_id_max_chars, mode="w",
+                                          fpSize=fp_calculator.parameters["fpSize"], fp_params=fp_params_json,
+                                          cluster_threshold=inner_clustering_threshold,
+                                          cluster_mode=cluster_mode,cluster_parallel=cluster_parallel)
+    
+    
+    for input_file in input_files:
+        try:
+            fps: List[Tuple[str, str]] = []
+            total_processed = 0
+            start_time = datetime.now()
+            sys.stdout.write(" Started adding fingerprints...\n")
+            for mol_id, fp, smiles in mol_fp_parallel_supplier(input_file, fp_type, workers=workers, fp_params=fp_params, 
+                                                        gen_ids=gen_ids, mol_id_prop=mol_id_prop, 
+                                                        mol_id_length=mol_id_max_chars):
+                fps.append((mol_id, fp, smiles))
+
+                # Appending to the fpstore object, it saves a lot of memory as string fp is converted to compact uint64 array 
+                if len(fps)%100000 == 0:
+                    fpstore.append_fingerprints(fps)
+                    total_processed += len(fps)
+                    fps = []
+                    elapsed_time = datetime.now() - start_time
+                    sys.stdout.write(f"\r Added {total_processed} fingerprints. Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...")
+                    sys.stdout.flush()
+
+            if len(fps) > 0:
+                total_processed += len(fps)
+                fpstore.append_fingerprints(fps)
+                elapsed_time = datetime.now() - start_time
+            sys.stdout.write("\n Finished adding fingerprints\n")
+            sys.stdout.write(f" Total fingerprints added: {total_processed};  Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...\n")
+            sys.stdout.flush()
+
+            fpstore.perform_clustering_write()
+        except Exception as e:
+            sys.stderr.write(f"Error occurred while creating database: {str(e)}\n")
+            fpstore.close()
+            raise e
+
+    fpstore.close()
+
+def create_database_from_dir(input_dir: str, db_file: str, fp_type: str, suffix = "sdf.gz", workers= 1, fp_params: Dict[str, Any] = None, 
+                    gen_ids: bool = True, mol_id_prop=None, mol_id_max_chars: int = 15, info: dict[str, Any] | str = "",
+                    inner_clustering_threshold: float = 0.2, cluster_mode: str = "memory", cluster_parallel: bool = False):
+    
+
+    if suffix not in ["sdf", "sdf.gz", "smi"]:
+        raise ValueError(f"Unsupported file suffix: {suffix}. Supported suffixes are: 'sdf', 'sdf.gz', 'smi'.")
+    
+    input_files = glob.glob(os.path.join(input_dir, f'*.{suffix}'))
+    create_database_from_files(input_files, db_file, fp_type, workers=workers, fp_params=fp_params, 
+                    gen_ids=gen_ids, mol_id_prop=mol_id_prop, mol_id_max_chars=mol_id_max_chars,
+                    info=info, inner_clustering_threshold=inner_clustering_threshold,
+                    cluster_mode=cluster_mode, cluster_parallel=cluster_parallel)
 
 def redo_inner_clustering(db_file: str, threshold: float, cluster_mode: str = "memory", cluster_parallel: bool = False) -> None:
     """Redoes the inner clustering of the database using the specified threshold.
