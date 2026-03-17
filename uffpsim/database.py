@@ -213,13 +213,13 @@ def create_database_from_files(input_files: List[str], db_file: str, fp_type: st
                                           cluster_threshold=inner_clustering_threshold,
                                           cluster_mode=cluster_mode,cluster_parallel=cluster_parallel)
     
-    
-    for input_file in input_files:
+    sys.stdout.write(" Started adding fingerprints...\n")
+    fps: List[Tuple[str, str]] = []
+    total_processed = 0
+    start_time = datetime.now()
+    total_files = len(input_files)
+    for n, input_file in enumerate(input_files, start=1):
         try:
-            fps: List[Tuple[str, str]] = []
-            total_processed = 0
-            start_time = datetime.now()
-            sys.stdout.write(" Started adding fingerprints...\n")
             for mol_id, fp, smiles in mol_fp_parallel_supplier(input_file, fp_type, workers=workers, fp_params=fp_params, 
                                                         gen_ids=gen_ids, mol_id_prop=mol_id_prop, 
                                                         mol_id_length=mol_id_max_chars):
@@ -231,23 +231,32 @@ def create_database_from_files(input_files: List[str], db_file: str, fp_type: st
                     total_processed += len(fps)
                     fps = []
                     elapsed_time = datetime.now() - start_time
-                    sys.stdout.write(f"\r Added {total_processed} fingerprints. Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...")
+                    sys.stdout.write(f"\r Processing file [{n}/{total_files}]: {input_file}, Added {total_processed} fingerprints. Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...")
                     sys.stdout.flush()
-
-            if len(fps) > 0:
-                total_processed += len(fps)
-                fpstore.append_fingerprints(fps)
-                elapsed_time = datetime.now() - start_time
-            sys.stdout.write("\n Finished adding fingerprints\n")
-            sys.stdout.write(f" Total fingerprints added: {total_processed};  Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...\n")
-            sys.stdout.flush()
-
-            fpstore.perform_clustering_write()
+            
         except Exception as e:
             sys.stderr.write(f"Error occurred while creating database: {str(e)}\n")
             fpstore.close()
             raise e
 
+    try:
+        # last of the fingerprints
+        if len(fps) > 0:
+            total_processed += len(fps)
+            fpstore.append_fingerprints(fps)
+            elapsed_time = datetime.now() - start_time
+        sys.stdout.write("\n Finished adding fingerprints\n")
+        sys.stdout.write(f" Total fingerprints added: {total_processed};  Total Time: {elapsed_time.total_seconds()/60:6.3f} mins...\n")
+        sys.stdout.flush()
+
+        # now clustering
+        fpstore.perform_clustering_write()
+
+    except Exception as e:
+        sys.stderr.write(f"Error occurred while performing inner clustering: {str(e)}\n")
+        fpstore.close()
+        raise e
+    
     fpstore.close()
 
 def create_database_from_dir(input_dir: str, db_file: str, fp_type: str, suffix = "sdf.gz", workers= 1, fp_params: Dict[str, Any] = None, 
