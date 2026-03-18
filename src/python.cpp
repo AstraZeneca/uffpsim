@@ -42,7 +42,7 @@ PYBIND11_MODULE(uffpsimLib, m) {
         .def("close", &FingerprintStore::close, FpStoreCloseDoc);
 
     py::class_<FPSearchEngine>(m, "FPSearchEngineBase")
-        .def(py::init<std::string>(), py::arg("filename"), py::call_guard<py::gil_scoped_release>())
+        .def(py::init<std::string, std::string>(), py::arg("filename"), py::arg("mode") = "memory", py::call_guard<py::gil_scoped_release>())
         .def_readonly("fp_store", &FPSearchEngine::_fpStore, "FingerprintStore object")
         .def_property("num_mols", &FPSearchEngine::getNumberOfMolecules, nullptr, "total number of molecules in the database.")
         .def("close", &FPSearchEngine::close, FpSearchEngineCloseDoc)

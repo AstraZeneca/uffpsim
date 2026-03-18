@@ -52,7 +52,7 @@ private:
      *
      * @return True if the data population was successful, false otherwise.
      */
-    bool _populateDataInMemory();
+    bool _populateDataInMemory(bool onlyClusterFPs = false);
 
     /**
      * @brief Populates the internal data structures with molecular fingerprints for a specific population count.
@@ -62,8 +62,9 @@ private:
      *
      * @param popCount The population count for which molecular fingerprints need to be populated.
      * @param inner_clusters_fingerprints A pointer to the data structure where the molecular fingerprints will be stored.
+     * @param onlyClusterFPs A boolean flag indicating whether to populate only the fingerprint data for clustered molecules.
      */
-    void _populateClustersInMemory(int popCount, utils::dt_inner_clusters_fingerprints *inner_clusters_fingerprints);
+    void _populateClustersInMemory(int popCount, utils::dt_inner_clusters_fingerprints *inner_clusters_fingerprints, bool onlyClusterFPs = false);
 
     /**
      * @brief Builds a sorted vector of molecular fingerprint data based on the popcount from the given fingerprints.
@@ -294,10 +295,10 @@ public:
      *
      * @return None.
      */
-    void loadDataInMemory()
+    void loadDataInMemory(bool onlyClusterFPs = false)
     {
         if (_file_mode == "r")
-            _populateDataInMemory();
+            _populateDataInMemory(onlyClusterFPs);
     }
 
     /**
@@ -380,4 +381,6 @@ public:
      * @throws std::runtime_error If the molecular ID is not found in the HDF5 file.
      */
     std::string getSmilesFromID(std::string id);
+
+    uint64_t* getFPsForCluster(int popCount, int fpStartIndex, int fpEndIndex);
 };

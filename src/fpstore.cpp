@@ -52,7 +52,8 @@ void FingerprintStore::close() {
 void FingerprintStore::freeMemory() {
     for(int pidx = 0; pidx < _popCountBins.size(); pidx++) {
         free(_fp_inner_clusters_by_popcount[pidx].clusterFp);
-        free(_fp_inner_clusters_by_popcount[pidx].fp);
+        if (_fp_inner_clusters_by_popcount[pidx].fp != nullptr)
+            free(_fp_inner_clusters_by_popcount[pidx].fp);
     }
     free(_fp_inner_clusters_by_popcount);
 }
@@ -148,14 +149,14 @@ bool FingerprintStore::_populateRootAttributes() {
     return true;
 }
 
-bool FingerprintStore::_populateDataInMemory() {
+bool FingerprintStore::_populateDataInMemory(bool onlyClusterFPs) {
     if(_root_group->nameExists(_popCountBinsGroupName)) {
         h5::Group *popcountBinsGroup =  utils::createOrOpenGroup(_root_group, _popCountBinsGroupName);
         _fp_inner_clusters_by_popcount = new utils::dt_inner_clusters_fingerprints[_popCountBins.size()];
         for (size_t i=0; i < _popCountBins.size(); i++) { // for each popcount bin
             if (popcountBinsGroup->exists(_getPopCountGroupName(_popCountBins[i]))) {
                 utils::dt_inner_clusters_fingerprints inner_clusters_fingerprints;
-                _populateClustersInMemory(_popCountBins[i], &inner_clusters_fingerprints); // populate all the clusters
+                _populateClustersInMemory(_popCountBins[i], &inner_clusters_fingerprints, onlyClusterFPs); // populate all the clusters
                 _fp_inner_clusters_by_popcount[i] = inner_clusters_fingerprints;
             } else {
                 throw std::runtime_error("The following path in h5 file does not exist: " + _getPopCountGroupName(_popCountBins[i])
@@ -171,7 +172,7 @@ bool FingerprintStore::_populateDataInMemory() {
     return true;
 }
 
-void FingerprintStore::_populateClustersInMemory(int popCount, utils::dt_inner_clusters_fingerprints *inner_clusters_fingerprints){
+void FingerprintStore::_populateClustersInMemory(int popCount, utils::dt_inner_clusters_fingerprints *inner_clusters_fingerprints, bool onlyClusterFPs) {
     h5::Group *popCountBinsGroup =  utils::createOrOpenGroup(_root_group, _popCountBinsGroupName);
     h5::Group *popCountGroup = utils::createOrOpenGroup(popCountBinsGroup, _getPopCountGroupName(popCount));
 
@@ -193,10 +194,12 @@ void FingerprintStore::_populateClustersInMemory(int popCount, utils::dt_inner_c
             utils::getFingerprintFromIndex(clustersGroup, _clustersFPGroupName, 0, lengthOfFPsInClusterFP, inner_clusters_fingerprints->clusterFp);
 
             hsize_t lengthOfFPsInClusters = utils::sizeOfFingerPrintDatasetInH5(clustersGroup, _fpArrayInClusterGroupName);
-            inner_clusters_fingerprints->fp = (uint64_t*) malloc(sizeof(uint64_t) * lengthOfFPsInClusters);
-            utils::getFingerprintFromIndex(clustersGroup, _fpArrayInClusterGroupName, 0, lengthOfFPsInClusters, inner_clusters_fingerprints->fp);
-
             inner_clusters_fingerprints->num_fps = lengthOfFPsInClusters / _CFPSize;
+            if (!onlyClusterFPs) {
+                inner_clusters_fingerprints->fp = (uint64_t*) malloc(sizeof(uint64_t) * lengthOfFPsInClusters);
+                utils::getFingerprintFromIndex(clustersGroup, _fpArrayInClusterGroupName, 0, lengthOfFPsInClusters, inner_clusters_fingerprints->fp);
+            }
+            
         }
 
     } else {
@@ -206,6 +209,18 @@ void FingerprintStore::_populateClustersInMemory(int popCount, utils::dt_inner_c
     delete clustersGroup;
     delete popCountGroup;
     delete popCountBinsGroup;
+}
+
+uint64_t* FingerprintStore::getFPsForCluster(int popCount, int fpStartIndex, int fpEndIndex) {
+    h5::Group *popCountBinsGroup =  utils::createOrOpenGroup(_root_group, _popCountBinsGroupName);
+    h5::Group *popCountGroup = utils::createOrOpenGroup(popCountBinsGroup, _getPopCountGroupName(popCount));
+    h5::Group *clustersGroup = new h5::Group(popCountGroup->openGroup(_clustersGroupName));
+    uint64_t *fps = (uint64_t*) malloc(sizeof(uint64_t) * (fpEndIndex - fpStartIndex));
+    utils::getFingerprintFromIndex(clustersGroup, _fpArrayInClusterGroupName, fpStartIndex, (fpEndIndex - fpStartIndex), fps);
+    delete clustersGroup;
+    delete popCountGroup;
+    delete popCountBinsGroup;
+    return fps;
 }
 
 void FingerprintStore::AppendFingerprints(const std::vector<std::tuple<std::string, std::string, std::string>> fingerprints) {
