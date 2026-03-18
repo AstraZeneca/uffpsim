@@ -33,7 +33,7 @@ class UFFPSimSearchEngine(uffpsimLib.FPSearchEngineBase):
     >>> batch_result = search_engine.batch_search(query_smiles, 0.7, 1)
     >>> [print(q, r) for q, r in zip(query_smiles, batch_result)]
     """
-    def __init__(self, db_file: str):
+    def __init__(self, db_file: str, mode: str = "memory"):
         """
         Initializes the UFFPSimSearchEngine with the given database file and initializes the fingerprint calculator.
 
@@ -41,9 +41,11 @@ class UFFPSimSearchEngine(uffpsimLib.FPSearchEngineBase):
         ----------
         db_file : str
             The file path of the database containing the molecular fingerprints and their corresponding identifiers.
+        mode : str, optional
+            The mode of operation for the search engine. Can be "memory" or "disk". Default is "memory".
 
         """
-        super().__init__(db_file)
+        super().__init__(db_file, mode)
         self.running = 0
         fp_input_arguments = json.loads(self.fp_store.fp_params_json)
         self.fp_calculator = FPCalculator(fp_input_arguments["fp_type"], fp_input_arguments["fp_params"])

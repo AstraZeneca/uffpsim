@@ -10,6 +10,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 #include <pybind11/pybind11.h>
+#include <functional>
 
 #include "fpstore.h"
 
@@ -17,6 +18,9 @@
 
 class FPSearchEngine {
     private:
+
+        std::function<void(std::vector<utils::dt_inner_clusters_fingerprints_maxscore>, uint64_t *, 
+                            float, int, std::vector<std::tuple<std::string, float>>&)> _normal_search;
 
         /**
          * The _normal_search method performs a single-query search on the fingerprint store using the Tanimoto coefficient.
@@ -31,8 +35,11 @@ class FPSearchEngine {
          *
          * Note: The _normal_search method assumes that the inner_clusters_fingerprints_maxscore vector is sorted by the maximum score in descending order.
          */
-        void _normal_search(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
+        void _normal_search_memory(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
                             float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
+
+        void _normal_search_disk(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
+                    float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
 
         /**
          * The prepareQuery method prepares the query fingerprint for searching.
@@ -83,9 +90,10 @@ class FPSearchEngine {
          *
          * Note: The FPSearchEngine class assumes that the fingerprint store file is properly formatted and contains valid fingerprint data.
          */
-        FPSearchEngine(const std::string& filename);
+        FPSearchEngine(const std::string& filename, std::string mode = "memory");
         ~FPSearchEngine();
 
+        std::string _mode = "memory"; // default search mode is memory, it can be set to "disk" for disk-based search
         int _molIdMaxLength;
         int _fpSize = 0;
         int _CFPSize;
