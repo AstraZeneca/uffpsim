@@ -43,6 +43,9 @@ private:
     std::string _fp_params;                      // Fingerprint parameters in JSON format as string 
     MolDataTable *_molDataTable;                 // MolDataTable object for handling molecular data in the HDF5 file
     InnerClusteringAgent *_innerClusteringAgent; // InnerClusteringAgent object for performing inner clustering operations
+    h5::Group *_popCountBinsGroup = nullptr;       // HDF5 group for population count bins
+    std::map<int, h5::Group*> _popCountToGroupMap; // map from population count to corresponding HDF5 group for that population count
+    std::map<int, h5::Group*> _popCountToClustersGroupMap; // map from population count to corresponding HDF5 group for clusters with that population count
 
     /**
      * @brief Populates the internal data structures with the molecular fingerprints and other relevant information from the HDF5 file.
@@ -383,4 +386,6 @@ public:
     std::string getSmilesFromID(std::string id);
 
     uint64_t* getFPsForCluster(int popCount, int fpStartIndex, int fpEndIndex);
+
+    void initH5GroupsMappingForPopCountBins();
 };

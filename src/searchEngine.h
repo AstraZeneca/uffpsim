@@ -10,7 +10,6 @@
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 #include <pybind11/pybind11.h>
-#include <functional>
 
 #include "fpstore.h"
 
@@ -19,8 +18,14 @@
 class FPSearchEngine {
     private:
 
-        std::function<void(std::vector<utils::dt_inner_clusters_fingerprints_maxscore>, uint64_t *, 
-                            float, int, std::vector<std::tuple<std::string, float>>&)> _normal_search;
+        using NormalSearchFn = void (FPSearchEngine::*)(
+            std::vector<utils::dt_inner_clusters_fingerprints_maxscore>,
+            uint64_t *,
+            float,
+            int,
+            std::vector<std::tuple<std::string, float>>&);
+
+        NormalSearchFn _normal_search = nullptr;
 
         /**
          * The _normal_search method performs a single-query search on the fingerprint store using the Tanimoto coefficient.

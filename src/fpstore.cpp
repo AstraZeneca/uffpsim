@@ -25,6 +25,31 @@ FingerprintStore::~FingerprintStore() {
 }
 
 void FingerprintStore::close() {
+    // close groups for population count bins and clusters, these are opened when search is performed directly from disk
+    if (_popCountBinsGroup != nullptr) {
+        // clear _popCountToClustersGroupMap
+        for (auto& entry : _popCountToClustersGroupMap) {
+            if (entry.second != nullptr) {
+                entry.second->close();
+                delete entry.second;
+                entry.second = nullptr;
+            }
+        }
+        _popCountToClustersGroupMap.clear();
+
+        // clear _popCountToGroupMap
+        for (auto& entry : _popCountToGroupMap) {
+            if (entry.second != nullptr) {
+                entry.second->close();
+                delete entry.second;
+                entry.second = nullptr;
+            }
+        }
+        _popCountToGroupMap.clear();
+        _popCountBinsGroup->close();
+        delete _popCountBinsGroup;
+        _popCountBinsGroup = nullptr;
+    }
 
     if (_root_group != nullptr) {
         _root_group->close();
@@ -211,15 +236,27 @@ void FingerprintStore::_populateClustersInMemory(int popCount, utils::dt_inner_c
     delete popCountBinsGroup;
 }
 
+void FingerprintStore::initH5GroupsMappingForPopCountBins() {
+    _popCountBinsGroup =  utils::createOrOpenGroup(_root_group, _popCountBinsGroupName);
+    for (size_t i=0; i < _popCountBins.size(); i++) { // for each popcount bin
+        if (_popCountBinsGroup->exists(_getPopCountGroupName(_popCountBins[i]))) {
+            h5::Group *popCountGroup = utils::createOrOpenGroup(_popCountBinsGroup, _getPopCountGroupName(_popCountBins[i]));
+            _popCountToGroupMap[_popCountBins[i]] = popCountGroup;
+            if (popCountGroup->nameExists(_clustersGroupName)) {
+                h5::Group *clustersGroup = new h5::Group(popCountGroup->openGroup(_clustersGroupName));
+                _popCountToClustersGroupMap[_popCountBins[i]] = clustersGroup;
+            }
+        } else {
+            throw std::runtime_error("The following path in h5 file does not exist: " + _getPopCountGroupName(_popCountBins[i])
+                                        + "!\n  There are inconsistencies in h5 file. Please rebuild the file!");
+        }
+    }
+}
+
 uint64_t* FingerprintStore::getFPsForCluster(int popCount, int fpStartIndex, int fpEndIndex) {
-    h5::Group *popCountBinsGroup =  utils::createOrOpenGroup(_root_group, _popCountBinsGroupName);
-    h5::Group *popCountGroup = utils::createOrOpenGroup(popCountBinsGroup, _getPopCountGroupName(popCount));
-    h5::Group *clustersGroup = new h5::Group(popCountGroup->openGroup(_clustersGroupName));
+    h5::Group *clustersGroup = _popCountToClustersGroupMap[popCount];
     uint64_t *fps = (uint64_t*) malloc(sizeof(uint64_t) * (fpEndIndex - fpStartIndex));
     utils::getFingerprintFromIndex(clustersGroup, _fpArrayInClusterGroupName, fpStartIndex, (fpEndIndex - fpStartIndex), fps);
-    delete clustersGroup;
-    delete popCountGroup;
-    delete popCountBinsGroup;
     return fps;
 }
 

@@ -24,12 +24,11 @@ FPSearchEngine::FPSearchEngine(const std::string& filename, std::string mode) {
     _mode = mode;
 
     if (mode == "disk") {
-        _normal_search = std::bind(&FPSearchEngine::_normal_search_disk, this, std::placeholders::_1, std::placeholders::_2, 
-                                    std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
+        _normal_search = &FPSearchEngine::_normal_search_disk;
         _fpStore->loadDataInMemory(true); // load only cluster fps in memory for disk-based search
+        _fpStore->initH5GroupsMappingForPopCountBins(); // initialize the mapping of popcount to corresponding h5 groups for popcount bins and clusters for disk-based search
     } else {
-        _normal_search = std::bind(&FPSearchEngine::_normal_search_memory, this, std::placeholders::_1, std::placeholders::_2, 
-                                    std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
+        _normal_search = &FPSearchEngine::_normal_search_memory;
         _fpStore->loadDataInMemory(); // load all fps in memory for memory-based search
     }
     
@@ -82,7 +81,7 @@ std::vector<std::tuple<std::string, float>> FPSearchEngine::search(const std::st
     std::vector<utils::dt_inner_clusters_fingerprints_maxscore> filteredPopCountBinsWithMaxScore = filterPopcountBins(queryCFp[_fpStore->_CFPPopCountIndex], threshold);
     std::vector<std::tuple<std::string, float>> results;
 
-    _normal_search(filteredPopCountBinsWithMaxScore, queryCFp, threshold, limits, results);
+    (this->*_normal_search)(filteredPopCountBinsWithMaxScore, queryCFp, threshold, limits, results);
 
     //sort results by score
     std::sort(results.begin(), results.end(), [](const std::tuple<std::string, float>& a, const std::tuple<std::string, float>& b) {
