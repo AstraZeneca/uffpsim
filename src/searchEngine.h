@@ -27,6 +27,13 @@ class FPSearchEngine {
 
         NormalSearchFn _normal_search = nullptr;
 
+        using BatchSearchFn = void (FPSearchEngine::*)(
+            utils::dt_batch_data &,
+            float,
+            int);
+
+        BatchSearchFn _batch_search = nullptr;
+
         /**
          * The _normal_search method performs a single-query search on the fingerprint store using the Tanimoto coefficient.
          * It compares the query fingerprint with the fingerprints of the inner clusters and populates the results vector with 
@@ -83,7 +90,9 @@ class FPSearchEngine {
          * Note: The _batch_search method assumes that the batch_data structure is properly initialized with valid query fingerprints and molecule IDs.
          *       It also assumes that the inner_clusters_fingerprints_maxscore vector is sorted by the maximum score in descending order.
          */
-        void _batch_search(utils::dt_batch_data &batch_data, float threshold, int limits);
+        void _batch_search_memory(utils::dt_batch_data &batch_data, float threshold, int limits);
+
+        void _batch_search_disk(utils::dt_batch_data &batch_data, float threshold, int limits);
 
     public:
 
