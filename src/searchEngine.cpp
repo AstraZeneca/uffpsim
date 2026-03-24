@@ -457,6 +457,7 @@ void FPSearchEngine::_batch_search_disk(utils::dt_batch_data &batch_data, float 
                         }
                     }
                 }
+                free(fp_ptr - (inner_end - inner_start)); // free memory allocated for fps read from disk
             }
             inner_start = clusterFp_ptr[0];
         }

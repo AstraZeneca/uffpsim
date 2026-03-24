@@ -110,8 +110,8 @@ class FPCalculator:
             self.fpSize = self.parameters["nBits"]
 
         if self.fpSize is not None:
-            if self.fpSize % 512 != 0:
-                raise ValueError(f"Number of bits in the fingerprint must be multiple of 512 to exploit the full performance. Here it is {self.fpSize}...")
+            if self.fpSize % 64 != 0:
+                raise ValueError(f"Number of bits in the fingerprint must be multiple of 64 to exploit the full performance. Here it is {self.fpSize}...")
         else:
             raise ValueError("Cannot determine number of bits in the Fingerprint.")
 
