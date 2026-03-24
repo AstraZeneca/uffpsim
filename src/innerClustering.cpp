@@ -10,18 +10,22 @@
 #include <tuple>
 #include <set>
 #include <vector>
+#include <cstring>
 #include <omp.h>
 #include <H5Cpp.h>
 
 #include "innerClustering.h"
 #include "fpstore.h"
+#ifdef USE_CUDA
+#include "innerClustering_cuda.h"
+#endif
 
 InnerClusteringAgent::InnerClusteringAgent(FingerprintStore *fpstore, std::string mode, bool parallel) {
     _fpstore = fpstore;
-    if (_mode == "memory" || _mode == "disk")
+    if (mode == "memory" || mode == "disk" || mode == "cuda")
         _mode = mode;
     else
-        throw "clustering mode should be either memory or disk";
+        throw "clustering mode should be either memory, disk, or cuda";
 
     _parallel = parallel;
 }
@@ -44,7 +48,10 @@ bool InnerClusteringAgent::performInnerClusteringAndWrite() {
 
         // perform inner clustering
         if (to_be_done) {
-            _doInnerClustering(popcount, popcountGroup);
+            if (_mode == "cuda")
+                _doInnerClusteringCUDA(popcount, popcountGroup);
+            else
+                _doInnerClustering(popcount, popcountGroup);
         }
 
         delete popcountGroup;
@@ -122,6 +129,112 @@ void InnerClusteringAgent::_doInnerClustering(int popCount, h5::Group *popcountG
     free(cfp);
     clusters.resize(0);
     cFpIndexToClusterID.resize(0);
+}
+
+void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popcountGroup) {
+    hsize_t totalSize = utils::sizeOfFingerPrintDatasetInH5(popcountGroup, "cfpData");
+    unsigned int num_fps_per_chunk = 1000;
+    hsize_t chunkSize = _fpstore->_CFPSize * num_fps_per_chunk;
+    uint64_t *cfp = (uint64_t *) malloc(sizeof(uint64_t) * chunkSize);
+    std::vector<utils::dt_inner_clusters_fingerprints> clusters;
+    uint64_t chunkCounter = 0, remainingSize = totalSize, currentSize = 0, fpIndex=0;
+    unsigned long sortCounter = 0;
+
+    while (remainingSize > 0) {
+        currentSize = remainingSize < chunkSize ? remainingSize : chunkSize;
+        utils::getFingerprintFromIndex(popcountGroup, "cfpData", fpIndex, currentSize, cfp);
+        for(size_t i = 0; i < currentSize; i += _fpstore->_CFPSize, fpIndex += _fpstore->_CFPSize) {
+            if (cfp[i + _fpstore->_CFPPopCountIndex] > 0) {
+                int32_t clusterId = -1;
+
+#ifdef USE_CUDA
+                const size_t num_clusters = clusters.size();
+                if (num_clusters > 0) {
+                    std::vector<uint64_t> contiguous_cluster_fp(num_clusters * _fpstore->_CFPSize);
+                    for (size_t cid = 0; cid < num_clusters; cid++) {
+                        std::memcpy(
+                            contiguous_cluster_fp.data() + (cid * _fpstore->_CFPSize),
+                            clusters[cid].clusterFp,
+                            sizeof(uint64_t) * _fpstore->_CFPSize
+                        );
+                    }
+
+                    clusterId = find_matching_cluster_cuda(
+                        contiguous_cluster_fp.data(),
+                        &cfp[i],
+                        (int) num_clusters,
+                        _fpstore->_CFPSize,
+                        _fpstore->_molIdOffset,
+                        _fpstore->_fpSize,
+                        _fpstore->_CFPPopCountIndex,
+                        _fpstore->_innerClusteringThreshold
+                    );
+                }
+#endif
+
+                if (clusterId < 0) {
+                    uint64_t common_popcnt = 0;
+                    float dist_factor = 0;
+                    for(size_t ic = 0; ic < clusters.size(); ic++) {
+                        uint64_t *clusterFP = clusters[ic].clusterFp;
+                        common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, &cfp[i] + _fpstore->_molIdOffset, _fpstore->_fpSize);
+                        dist_factor = _fpstore->_innerClusteringThreshold *  (&cfp[i])[_fpstore->_CFPPopCountIndex] + _fpstore->_innerClusteringThreshold * (clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
+                        if (common_popcnt >= dist_factor) {
+                            clusterId = (int32_t) ic;
+                            break;
+                        }
+                    }
+                }
+
+                if(clusterId == -1) {
+                    uint64_t *clusterFP = (uint64_t*) malloc(sizeof(uint64_t) * _fpstore->_CFPSize);
+                    for (size_t j = _fpstore->_molIdOffset; j<_fpstore->_CFPSize; j++)
+                        clusterFP[j] = cfp[i + j];
+
+                    utils::dt_inner_clusters_fingerprints cluster;
+                    cluster.popCount = popCount;
+                    cluster.clusterFp = clusterFP;
+                    cluster.num_clusters = 1;
+                    cluster.num_fps = 1;
+                    cluster.fp = (uint64_t*) malloc(sizeof(uint64_t) * _fpstore->_CFPSize);
+                    std::memcpy(cluster.fp, &cfp[i], sizeof(uint64_t) * _fpstore->_CFPSize);
+                    clusters.push_back(cluster);
+                } else {
+                    int fp_end_index = _fpstore->_molIdOffset + _fpstore->_fpSize;
+                    uint64_t *clusterFP = clusters[clusterId].clusterFp;
+                    clusterFP[_fpstore->_CFPPopCountIndex] = 0;
+                    for (int j = _fpstore->_molIdOffset; j<fp_end_index; j++) {
+                        clusterFP[j] |= cfp[i + j];
+                        clusterFP[_fpstore->_CFPPopCountIndex] += popcntll(clusterFP[j]);
+                    }
+
+                    int previous_fps_full_size = clusters[clusterId].num_fps * _fpstore->_CFPSize;
+                    int new_fps_full_size = previous_fps_full_size + _fpstore->_CFPSize;
+                    clusters[clusterId].num_fps += 1;
+                    clusters[clusterId].fp = (uint64_t*) realloc(clusters[clusterId].fp, sizeof(uint64_t) * new_fps_full_size);
+                    std::memcpy(clusters[clusterId].fp + previous_fps_full_size, &cfp[i], sizeof(uint64_t) * _fpstore->_CFPSize);
+                }
+            }
+        }
+
+        chunkCounter += 1;
+        remainingSize = remainingSize < chunkSize ? 0 : totalSize - (chunkCounter * chunkSize);
+
+        if (sortCounter % 10000 == 0) {
+            std::sort(clusters.begin(), clusters.end(), [](const utils::dt_inner_clusters_fingerprints& a, const utils::dt_inner_clusters_fingerprints& b) {
+                return a.num_fps > b.num_fps;
+            });
+        }
+        sortCounter += num_fps_per_chunk;
+    }
+
+    _writeClusters(popcountGroup, clusters);
+
+    std::cout << "PopCount: "<< popCount << "; No. of FPs: " << totalSize/_fpstore->_CFPSize << "; No. of clusters: " << clusters.size() << std::endl;
+
+    for(auto &cluster: clusters) utils::free_dt_inner_clusters_fingerprints(cluster);
+    free(cfp);
+    clusters.resize(0);
 }
 
 void InnerClusteringAgent::_addFingerprintToCluster(uint64_t *currentFP, int popCount, std::vector<utils::dt_inner_clusters_fingerprints> &clusters) {
@@ -241,7 +354,10 @@ void InnerClusteringAgent::performInnerClusteringAfterUpdate(std::set<int> modif
     // iterate over modified popcounts and perform inner clustering
     for (auto popcount: modifiedPopCounts) {
         h5::Group *popcountGroup = utils::createOrOpenGroup(popcountBinsGroup, _fpstore->_getPopCountGroupName(popcount));
-        _doInnerClustering(popcount, popcountGroup);
+        if (_mode == "cuda")
+            _doInnerClusteringCUDA(popcount, popcountGroup);
+        else
+            _doInnerClustering(popcount, popcountGroup);
         delete popcountGroup;
     }
 

@@ -78,6 +78,16 @@ class InnerClusteringAgent {
         void _doInnerClustering(int popCount, h5::Group *popcountGroup);
 
         /**
+         * @brief Performs CUDA-accelerated inner clustering process for a specific population count.
+         *
+         * This method is intended to run inner clustering with CUDA acceleration when available.
+         *
+         * @param popCount The population count for which the inner clustering process will be performed.
+         * @param popcountGroup A pointer to the HDF5 group representing the population count group.
+         */
+        void _doInnerClusteringCUDA(int popCount, h5::Group *popcountGroup);
+
+        /**
          * @brief Writes the inner clustering results to an HDF5 file for a specific population count.
          *
          * This method takes a pointer to an HDF5 group representing the population count group and a vector of inner clustering results.

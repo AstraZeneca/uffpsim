@@ -5,6 +5,7 @@ import codecs
 import sys
 import os
 import glob
+import shutil
 
 def read(rel_path):
     here = os.path.abspath(os.path.dirname(__file__))
@@ -22,9 +23,58 @@ class get_pybind_include(object):
 
         return pybind11.get_include()
 
-def setup_extension_modules():
-    source_files = ["src/python.cpp", "src/molDataTable.cpp", "src/fpstore.cpp", "src/searchEngine.cpp", "src/utils.cpp", "src/h5_utils.cpp", "src/innerClustering.cpp"]
+def find_cuda_config():
+    cuda_home = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
+    nvcc = None
+
+    if cuda_home:
+        candidate = os.path.join(cuda_home, "bin", "nvcc")
+        if os.path.exists(candidate):
+            nvcc = candidate
+
+    if not nvcc:
+        nvcc = shutil.which("nvcc")
+
+    if not nvcc:
+        return None
+
+    if not cuda_home:
+        cuda_home = os.path.dirname(os.path.dirname(nvcc))
+
+    include_dir = os.path.join(cuda_home, "include")
+    lib64_dir = os.path.join(cuda_home, "lib64")
+    lib_dir = os.path.join(cuda_home, "lib")
+
+    return {
+        "home": cuda_home,
+        "nvcc": nvcc,
+        "include_dir": include_dir,
+        "lib_dir": lib64_dir if os.path.exists(lib64_dir) else lib_dir,
+    }
+
+
+def setup_extension_modules(cuda_config=None):
+    source_files = [
+        "src/python.cpp",
+        "src/molDataTable.cpp",
+        "src/fpstore.cpp",
+        "src/searchEngine.cpp",
+        "src/utils.cpp",
+        "src/h5_utils.cpp",
+        "src/innerClustering.cpp",
+    ]
+
+    define_macros = []
+    include_dirs = ["/src", get_pybind_include()]
+
+    if cuda_config:
+        source_files.append("src/innerClustering_cuda.cu")
+        define_macros.append(("USE_CUDA", "1"))
+        include_dirs.append(cuda_config["include_dir"])
+
     extension = Extension("uffpsim.uffpsimLib", sources=source_files, include_dirs=[ "/src", get_pybind_include() ], language="c++",)
+    extension.include_dirs = include_dirs
+    extension.define_macros = define_macros
     return [extension]
 
 # As of Python 3.6, CCompiler has a `has_flag` method.
@@ -101,10 +151,41 @@ class BuildExt(build_ext):
         return cflags.split(), ldflags.split() + ['-lhdf5_cpp', '-lhdf5_hl']
 
     def build_extensions(self):
+        cuda_config = find_cuda_config()
+
+        if cuda_config:
+            if ".cu" not in self.compiler.src_extensions:
+                self.compiler.src_extensions.append(".cu")
+
+            original_compile = self.compiler._compile
+            nvcc_path = cuda_config["nvcc"]
+
+            def compile_with_nvcc(obj, src, ext, cc_args, extra_postargs, pp_opts):
+                if src.endswith(".cu"):
+                    postargs = []
+                    if isinstance(extra_postargs, dict):
+                        postargs = extra_postargs.get("nvcc", [])
+                    self.compiler.spawn([nvcc_path, "-c", src, "-o", obj, "-Xcompiler", "-fPIC"] + pp_opts + postargs)
+                else:
+                    if isinstance(extra_postargs, dict):
+                        extra_postargs = extra_postargs.get("cxx", [])
+                    original_compile(obj, src, ext, cc_args, extra_postargs, pp_opts)
+
+            self.compiler._compile = compile_with_nvcc
+
         f5_cflags, h5_ldflags = self.find_hdf5()
         ct = self.compiler.compiler_type
         opts = self.c_opts.get(ct, [])
         link_opts = self.l_opts.get(ct, [])
+        nvcc_opts = ["-O3", "--std=c++14", "-lineinfo"]
+
+        if cuda_config and cuda_config["include_dir"]:
+            opts.append("-I" + cuda_config["include_dir"])
+
+        if cuda_config and cuda_config["lib_dir"]:
+            link_opts.append("-L" + cuda_config["lib_dir"])
+            link_opts.append("-lcudart")
+
         if ct == "unix":
             opts.append(cpp_flag(self.compiler))
             if has_flag(self.compiler, "-fvisibility=hidden"):
@@ -121,16 +202,20 @@ class BuildExt(build_ext):
                 opts.append("-msse4.2")
 
         for ext in self.extensions:
-            ext.define_macros = [
-                ("VERSION_INFO", '"{}"'.format(self.distribution.get_version()))
-            ]
-            ext.extra_compile_args = opts + f5_cflags
+            ext.define_macros.append(("VERSION_INFO", '"{}"'.format(self.distribution.get_version())))
+            if cuda_config:
+                ext.extra_compile_args = {
+                    "cxx": opts + f5_cflags,
+                    "nvcc": nvcc_opts + f5_cflags,
+                }
+            else:
+                ext.extra_compile_args = opts + f5_cflags
             ext.extra_link_args = link_opts + h5_ldflags
         build_ext.build_extensions(self)
 
 
 setup(
     packages=find_packages(),
-    ext_modules=setup_extension_modules(),
+    ext_modules=setup_extension_modules(find_cuda_config()),
     cmdclass={"build_ext": BuildExt},
 )
