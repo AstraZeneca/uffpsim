@@ -170,21 +170,20 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
                         _fpstore->_innerClusteringThreshold
                     );
                 }
-#endif
-
-                if (clusterId < 0) {
-                    uint64_t common_popcnt = 0;
-                    float dist_factor = 0;
-                    for(size_t ic = 0; ic < clusters.size(); ic++) {
-                        uint64_t *clusterFP = clusters[ic].clusterFp;
-                        common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, &cfp[i] + _fpstore->_molIdOffset, _fpstore->_fpSize);
-                        dist_factor = _fpstore->_innerClusteringThreshold *  (&cfp[i])[_fpstore->_CFPPopCountIndex] + _fpstore->_innerClusteringThreshold * (clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
-                        if (common_popcnt >= dist_factor) {
-                            clusterId = (int32_t) ic;
-                            break;
-                        }
+#else
+                std::cout <<"Warning: CUDA is not enabled. Running inner clustering without CUDA acceleration." << std::endl;
+                uint64_t common_popcnt = 0;
+                float dist_factor = 0;
+                for(size_t ic = 0; ic < clusters.size(); ic++) {
+                    uint64_t *clusterFP = clusters[ic].clusterFp;
+                    common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, &cfp[i] + _fpstore->_molIdOffset, _fpstore->_fpSize);
+                    dist_factor = _fpstore->_innerClusteringThreshold *  (&cfp[i])[_fpstore->_CFPPopCountIndex] + _fpstore->_innerClusteringThreshold * (clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
+                    if (common_popcnt >= dist_factor) {
+                        clusterId = (int32_t) ic;
+                        break;
                     }
                 }
+#endif
 
                 if(clusterId == -1) {
                     uint64_t *clusterFP = (uint64_t*) malloc(sizeof(uint64_t) * _fpstore->_CFPSize);
