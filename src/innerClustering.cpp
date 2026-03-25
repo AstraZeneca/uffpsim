@@ -11,8 +11,12 @@
 #include <set>
 #include <vector>
 #include <cstring>
+#include <stdexcept>
 #include <omp.h>
 #include <H5Cpp.h>
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
 
 #include "innerClustering.h"
 #include "fpstore.h"
@@ -132,66 +136,141 @@ void InnerClusteringAgent::_doInnerClustering(int popCount, h5::Group *popcountG
 }
 
 void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popcountGroup) {
+#ifndef USE_CUDA
+    throw std::runtime_error("CUDA mode requested but binary is built without USE_CUDA");
+#else
     hsize_t totalSize = utils::sizeOfFingerPrintDatasetInH5(popcountGroup, "cfpData");
     unsigned int num_fps_per_chunk = 1000;
     hsize_t chunkSize = _fpstore->_CFPSize * num_fps_per_chunk;
-    uint64_t *cfp = (uint64_t *) malloc(sizeof(uint64_t) * chunkSize);
-    std::vector<utils::dt_inner_clusters_fingerprints> clusters;
-    uint64_t chunkCounter = 0, remainingSize = totalSize, currentSize = 0, fpIndex=0;
 
-    // hold cluster fps in contiguous memory to reduce cuda kernel calls, it will be reallocated when a new cluster is added, 
-    // and it will be used in next iterations until new cluster is added. It is only used in cuda mode, in other modes, 
-    // cluster fps are stored in each cluster structure and accessed directly.
+    // Declare all resources upfront so the RAII guard below can manage them.
+    uint64_t *cfp = nullptr;
+    bool cfp_pinned = false;
+    const size_t initial_cluster_capacity = 4096;
+    size_t cluster_capacity = initial_cluster_capacity;
     uint64_t *contiguous_cluster_fp = nullptr;
+    bool cluster_fp_pinned = false;
+    CudaInnerClusteringContext *cuda_context = nullptr;
+    std::vector<utils::dt_inner_clusters_fingerprints> clusters;
+    uint64_t chunkCounter = 0, remainingSize = totalSize, currentSize = 0, fpIndex = 0;
+
+    // RAII guard — destructor runs on both normal return and exception,
+    // guaranteeing that device context, pinned/heap buffers and cluster.fp
+    // allocations are always freed.
+    struct Guard {
+        CudaInnerClusteringContext **ctx;
+        uint64_t **cfp; bool *cfp_pinned;
+        uint64_t **cluster_fp; bool *cluster_fp_pinned;
+        std::vector<utils::dt_inner_clusters_fingerprints> *clusters;
+        ~Guard() {
+            if (*ctx) { destroy_cuda_inner_clustering_context(*ctx); *ctx = nullptr; }
+            if (*cluster_fp) {
+                if (*cluster_fp_pinned) cudaFreeHost(*cluster_fp); else free(*cluster_fp);
+                *cluster_fp = nullptr;
+            }
+            if (*cfp) {
+                if (*cfp_pinned) cudaFreeHost(*cfp); else free(*cfp);
+                *cfp = nullptr;
+            }
+            for (auto &c : *clusters) {
+                c.clusterFp = nullptr; // part of *cluster_fp, already freed above
+                utils::free_dt_inner_clusters_fingerprints(c);
+            }
+        }
+    } guard = {&cuda_context, &cfp, &cfp_pinned, &contiguous_cluster_fp, &cluster_fp_pinned, &clusters};
+
+    const size_t cfp_bytes = sizeof(uint64_t) * chunkSize;
+    if (cudaHostAlloc(reinterpret_cast<void **>(&cfp), cfp_bytes, cudaHostAllocPortable) == cudaSuccess) {
+        cfp_pinned = true;
+    } else {
+        cfp = (uint64_t *) malloc(cfp_bytes);
+    }
+
+    const size_t cluster_bytes = sizeof(uint64_t) * cluster_capacity * _fpstore->_CFPSize;
+    if (cudaHostAlloc(reinterpret_cast<void **>(&contiguous_cluster_fp), cluster_bytes, cudaHostAllocPortable) == cudaSuccess) {
+        cluster_fp_pinned = true;
+    } else {
+        contiguous_cluster_fp = (uint64_t *) malloc(cluster_bytes);
+    }
+
+    cuda_context = create_cuda_inner_clustering_context(
+        _fpstore->_CFPSize,
+        _fpstore->_molIdOffset,
+        _fpstore->_fpSize,
+        _fpstore->_CFPPopCountIndex,
+        _fpstore->_innerClusteringThreshold,
+        cluster_capacity,
+        chunkSize
+    );
+    if (cuda_context == nullptr || contiguous_cluster_fp == nullptr || cfp == nullptr) {
+        throw std::runtime_error("Failed to initialize CUDA buffers/context in _doInnerClusteringCUDA");
+    }
+
+    auto grow_cluster_storage = [&](size_t required_clusters) {
+        if (required_clusters <= cluster_capacity) return true;
+
+        size_t new_capacity = cluster_capacity;
+        while (new_capacity < required_clusters) {
+            new_capacity *= 2;
+        }
+
+        uint64_t *new_buffer = nullptr;
+        size_t new_bytes = sizeof(uint64_t) * new_capacity * _fpstore->_CFPSize;
+
+        if (cluster_fp_pinned) {
+            if (cudaHostAlloc(reinterpret_cast<void **>(&new_buffer), new_bytes, cudaHostAllocPortable) != cudaSuccess) {
+                return false;
+            }
+            std::memcpy(new_buffer, contiguous_cluster_fp, sizeof(uint64_t) * cluster_capacity * _fpstore->_CFPSize);
+            cudaFreeHost(contiguous_cluster_fp);
+        } else
+        {
+            new_buffer = (uint64_t *) realloc(contiguous_cluster_fp, new_bytes);
+            if (new_buffer == nullptr) {
+                return false;
+            }
+        }
+
+        contiguous_cluster_fp = new_buffer;
+        cluster_capacity = new_capacity;
+        for (size_t cid = 0; cid < clusters.size(); cid++) {
+            clusters[cid].clusterFp = contiguous_cluster_fp + (cid * _fpstore->_CFPSize);
+        }
+        return true;
+    };
 
     while (remainingSize > 0) {
         currentSize = remainingSize < chunkSize ? remainingSize : chunkSize;
         utils::getFingerprintFromIndex(popcountGroup, "cfpData", fpIndex, currentSize, cfp);
+
+        if (upload_cfp_chunk_cuda(cuda_context, cfp, currentSize) != 0) {
+            throw std::runtime_error("CUDA upload_cfp_chunk_cuda failed");
+        }
+
         for(size_t i = 0; i < currentSize; i += _fpstore->_CFPSize, fpIndex += _fpstore->_CFPSize) {
             if (cfp[i + _fpstore->_CFPPopCountIndex] > 0) {
                 int32_t clusterId = -1;
 
-#ifdef USE_CUDA
                 const size_t num_clusters = clusters.size();
                 if (num_clusters > 0) {
-                    clusterId = find_matching_cluster_cuda(
-                        contiguous_cluster_fp,
-                        &cfp[i],
-                        (int) num_clusters,
-                        _fpstore->_CFPSize,
-                        _fpstore->_molIdOffset,
-                        _fpstore->_fpSize,
-                        _fpstore->_CFPPopCountIndex,
-                        _fpstore->_innerClusteringThreshold
-                    );
-                    if (clusterId < -1 || clusterId >= static_cast<int32_t>(num_clusters)) {
-                        std::cerr << "CUDA returned invalid cluster id " << clusterId
-                                  << " for fp index " << fpIndex
-                                  << ". Treating as no-match." << std::endl;
-                        clusterId = -1;
+                    const size_t chunk_fp_index = i / _fpstore->_CFPSize;
+                    clusterId = find_matching_cluster_in_chunk_cuda(cuda_context, chunk_fp_index, (int)num_clusters);
+                    if (clusterId < -1) {
+                        throw std::runtime_error("CUDA find_matching_cluster_in_chunk_cuda failed");
+                    }
+                    if (clusterId >= static_cast<int32_t>(num_clusters)) {
+                        throw std::runtime_error("CUDA returned out-of-range cluster id");
                     }
                 }
-#else
-                std::cout <<"Warning: CUDA is not enabled. Running inner clustering without CUDA acceleration." << std::endl;
-                uint64_t common_popcnt = 0;
-                float dist_factor = 0;
-                for(size_t ic = 0; ic < clusters.size(); ic++) {
-                    uint64_t *clusterFP = clusters[ic].clusterFp;
-                    common_popcnt = bitwise_and_popcount(clusterFP + _fpstore->_molIdOffset, &cfp[i] + _fpstore->_molIdOffset, _fpstore->_fpSize);
-                    dist_factor = _fpstore->_innerClusteringThreshold *  (&cfp[i])[_fpstore->_CFPPopCountIndex] + _fpstore->_innerClusteringThreshold * (clusterFP[_fpstore->_CFPPopCountIndex] - common_popcnt);
-                    if (common_popcnt >= dist_factor) {
-                        clusterId = (int32_t) ic;
-                        break;
-                    }
-                }
-#endif
+
                 if(clusterId == -1) {
                     const size_t old_num_clusters = clusters.size();
-                    contiguous_cluster_fp = (uint64_t*) realloc(contiguous_cluster_fp, sizeof(uint64_t) * (old_num_clusters + 1) * _fpstore->_CFPSize);
-                    // realloc may have moved the buffer — refresh all existing clusterFp pointers
-                    for (size_t cid = 0; cid < old_num_clusters; cid++)
-                        clusters[cid].clusterFp = contiguous_cluster_fp + (cid * _fpstore->_CFPSize);
+                    if (!grow_cluster_storage(old_num_clusters + 1)) {
+                        throw std::runtime_error("Failed to grow contiguous cluster FP host buffer");
+                    }
+
                     uint64_t *clusterFP = contiguous_cluster_fp + (old_num_clusters * _fpstore->_CFPSize);
+                    std::memset(clusterFP, 0, sizeof(uint64_t) * _fpstore->_CFPSize);
                     for (size_t j = _fpstore->_molIdOffset; j<_fpstore->_CFPSize; j++)
                         clusterFP[j] = cfp[i + j];
 
@@ -203,42 +282,46 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
                     cluster.fp = (uint64_t*) malloc(sizeof(uint64_t) * _fpstore->_CFPSize);
                     std::memcpy(cluster.fp, &cfp[i], sizeof(uint64_t) * _fpstore->_CFPSize);
                     clusters.push_back(cluster);
-                } else {
-                    int fp_end_index = _fpstore->_molIdOffset + _fpstore->_fpSize;
-                    uint64_t *clusterFP = clusters[clusterId].clusterFp;
-                    clusterFP[_fpstore->_CFPPopCountIndex] = 0;
-                    for (int j = _fpstore->_molIdOffset; j<fp_end_index; j++) {
-                        clusterFP[j] |= cfp[i + j];
-                        clusterFP[_fpstore->_CFPPopCountIndex] += popcntll(clusterFP[j]);
-                    }
 
-                    int previous_fps_full_size = clusters[clusterId].num_fps * _fpstore->_CFPSize;
-                    int new_fps_full_size = previous_fps_full_size + _fpstore->_CFPSize;
+                    if (upsert_cluster_fp_cuda(cuda_context, clusterFP, old_num_clusters) != 0) {
+                        throw std::runtime_error("CUDA upsert_cluster_fp_cuda failed for new cluster");
+                    }
+                } else {
+                    // Use size_t to avoid int overflow for large clusters
+                    const size_t previous_fps_full_size = static_cast<size_t>(clusters[clusterId].num_fps) * _fpstore->_CFPSize;
+                    const size_t new_fps_full_size = previous_fps_full_size + _fpstore->_CFPSize;
                     clusters[clusterId].num_fps += 1;
-                    clusters[clusterId].fp = (uint64_t*) realloc(clusters[clusterId].fp, sizeof(uint64_t) * new_fps_full_size);
+                    uint64_t *new_fp = (uint64_t*) realloc(clusters[clusterId].fp, sizeof(uint64_t) * new_fps_full_size);
+                    if (new_fp == nullptr) {
+                        throw std::runtime_error("realloc failed for cluster fp buffer");
+                    }
+                    clusters[clusterId].fp = new_fp;
                     std::memcpy(clusters[clusterId].fp + previous_fps_full_size, &cfp[i], sizeof(uint64_t) * _fpstore->_CFPSize);
+
+                    if (update_cluster_fp_with_chunk_fp_cuda(
+                            cuda_context,
+                            i / _fpstore->_CFPSize,
+                            static_cast<size_t>(clusterId)
+                        ) != 0) {
+                        throw std::runtime_error("CUDA update_cluster_fp_with_chunk_fp_cuda failed");
+                    }
                 }
             }
         }
 
         chunkCounter += 1;
         remainingSize = remainingSize < chunkSize ? 0 : totalSize - (chunkCounter * chunkSize);
-        // NOTE: do NOT sort clusters in CUDA mode — the CUDA kernel returns indices into
-        // contiguous_cluster_fp which must stay in sync with the clusters vector ordering.
+    }
+
+    if (download_cluster_fps_cuda(cuda_context, contiguous_cluster_fp, clusters.size()) != 0) {
+        throw std::runtime_error("CUDA download_cluster_fps_cuda failed");
     }
 
     _writeClusters(popcountGroup, clusters);
 
     std::cout << "PopCount: "<< popCount << "; No. of FPs: " << totalSize/_fpstore->_CFPSize << "; No. of clusters: " << clusters.size() << std::endl;
-
-    free(contiguous_cluster_fp);
-    for(auto &cluster: clusters) {
-        // set to nullptr to avoid double free, as clusterFp is part of contiguous_cluster_fp which is freed above
-        cluster.clusterFp = nullptr;
-        utils::free_dt_inner_clusters_fingerprints(cluster);
-    }
-    free(cfp);
-    clusters.resize(0);
+    // Guard destructor handles all cleanup (cuda_context, cfp, contiguous_cluster_fp, cluster.fp)
+#endif
 }
 
 void InnerClusteringAgent::_addFingerprintToCluster(uint64_t *currentFP, int popCount, std::vector<utils::dt_inner_clusters_fingerprints> &clusters) {
