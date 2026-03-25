@@ -138,7 +138,11 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
     uint64_t *cfp = (uint64_t *) malloc(sizeof(uint64_t) * chunkSize);
     std::vector<utils::dt_inner_clusters_fingerprints> clusters;
     uint64_t chunkCounter = 0, remainingSize = totalSize, currentSize = 0, fpIndex=0;
-    unsigned long sortCounter = 0;
+
+    // hold cluster fps in contiguous memory to reduce cuda kernel calls, it will be reallocated when a new cluster is added, 
+    // and it will be used in next iterations until new cluster is added. It is only used in cuda mode, in other modes, 
+    // cluster fps are stored in each cluster structure and accessed directly.
+    uint64_t *contiguous_cluster_fp = nullptr;
 
     while (remainingSize > 0) {
         currentSize = remainingSize < chunkSize ? remainingSize : chunkSize;
@@ -150,17 +154,8 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
 #ifdef USE_CUDA
                 const size_t num_clusters = clusters.size();
                 if (num_clusters > 0) {
-                    std::vector<uint64_t> contiguous_cluster_fp(num_clusters * _fpstore->_CFPSize);
-                    for (size_t cid = 0; cid < num_clusters; cid++) {
-                        std::memcpy(
-                            contiguous_cluster_fp.data() + (cid * _fpstore->_CFPSize),
-                            clusters[cid].clusterFp,
-                            sizeof(uint64_t) * _fpstore->_CFPSize
-                        );
-                    }
-
                     clusterId = find_matching_cluster_cuda(
-                        contiguous_cluster_fp.data(),
+                        contiguous_cluster_fp,
                         &cfp[i],
                         (int) num_clusters,
                         _fpstore->_CFPSize,
@@ -169,6 +164,12 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
                         _fpstore->_CFPPopCountIndex,
                         _fpstore->_innerClusteringThreshold
                     );
+                    if (clusterId < -1 || clusterId >= static_cast<int32_t>(num_clusters)) {
+                        std::cerr << "CUDA returned invalid cluster id " << clusterId
+                                  << " for fp index " << fpIndex
+                                  << ". Treating as no-match." << std::endl;
+                        clusterId = -1;
+                    }
                 }
 #else
                 std::cout <<"Warning: CUDA is not enabled. Running inner clustering without CUDA acceleration." << std::endl;
@@ -184,9 +185,13 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
                     }
                 }
 #endif
-
                 if(clusterId == -1) {
-                    uint64_t *clusterFP = (uint64_t*) malloc(sizeof(uint64_t) * _fpstore->_CFPSize);
+                    const size_t old_num_clusters = clusters.size();
+                    contiguous_cluster_fp = (uint64_t*) realloc(contiguous_cluster_fp, sizeof(uint64_t) * (old_num_clusters + 1) * _fpstore->_CFPSize);
+                    // realloc may have moved the buffer — refresh all existing clusterFp pointers
+                    for (size_t cid = 0; cid < old_num_clusters; cid++)
+                        clusters[cid].clusterFp = contiguous_cluster_fp + (cid * _fpstore->_CFPSize);
+                    uint64_t *clusterFP = contiguous_cluster_fp + (old_num_clusters * _fpstore->_CFPSize);
                     for (size_t j = _fpstore->_molIdOffset; j<_fpstore->_CFPSize; j++)
                         clusterFP[j] = cfp[i + j];
 
@@ -218,20 +223,20 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
 
         chunkCounter += 1;
         remainingSize = remainingSize < chunkSize ? 0 : totalSize - (chunkCounter * chunkSize);
-
-        if (sortCounter % 10000 == 0) {
-            std::sort(clusters.begin(), clusters.end(), [](const utils::dt_inner_clusters_fingerprints& a, const utils::dt_inner_clusters_fingerprints& b) {
-                return a.num_fps > b.num_fps;
-            });
-        }
-        sortCounter += num_fps_per_chunk;
+        // NOTE: do NOT sort clusters in CUDA mode — the CUDA kernel returns indices into
+        // contiguous_cluster_fp which must stay in sync with the clusters vector ordering.
     }
 
     _writeClusters(popcountGroup, clusters);
 
     std::cout << "PopCount: "<< popCount << "; No. of FPs: " << totalSize/_fpstore->_CFPSize << "; No. of clusters: " << clusters.size() << std::endl;
 
-    for(auto &cluster: clusters) utils::free_dt_inner_clusters_fingerprints(cluster);
+    free(contiguous_cluster_fp);
+    for(auto &cluster: clusters) {
+        // set to nullptr to avoid double free, as clusterFp is part of contiguous_cluster_fp which is freed above
+        cluster.clusterFp = nullptr;
+        utils::free_dt_inner_clusters_fingerprints(cluster);
+    }
     free(cfp);
     clusters.resize(0);
 }
@@ -370,7 +375,7 @@ void InnerClusteringAgent::_addFingerprintToClusterDiskMemory(uint64_t *currentF
     uint64_t common_popcnt = 0, num_clusters = clusters.size();
     float dist_factor = 0; // in place of real distance, we calculate factor, which avoid division operation
     int fp_end_index = _fpstore->_molIdOffset + _fpstore->_fpSize;
-    uint32_t clusterId = -1;
+    int32_t clusterId = -1;
 
     if (num_clusters > 1000 && _parallel){ // parallel version when number of clusters is large
         #pragma omp parallel default(none) shared(clusterId, clusters, num_clusters, currentFP, _fpstore)

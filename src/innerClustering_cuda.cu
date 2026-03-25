@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <limits>
+#include <stdio.h>
 
 #include <cuda_runtime.h>
 
@@ -18,6 +19,15 @@ __global__ void findMatchingClusterKernel(
 ) {
     int clusterIdx = blockIdx.x * blockDim.x + threadIdx.x;
     if (clusterIdx >= numClusters) {
+        return;
+    }
+
+    if (cfpPopcountIndex >= cfpSize || molIdOffset >= cfpSize) {
+        return;
+    }
+
+    const size_t fpEnd = molIdOffset + fpSize;
+    if (fpEnd > cfpSize) {
         return;
     }
 
@@ -52,6 +62,23 @@ int find_matching_cluster_cuda(
         return -1;
     }
 
+    if (cluster_fps == nullptr || current_fp == nullptr) {
+        fprintf(stderr, "CUDA error: null host pointer passed to find_matching_cluster_cuda\n");
+        return -2;
+    }
+
+    if (cfp_size == 0 || cfp_popcount_index >= cfp_size || mol_id_offset >= cfp_size) {
+        fprintf(stderr, "CUDA error: invalid CFP layout (cfp_size=%zu, pop_idx=%zu, mol_offset=%zu)\n",
+                cfp_size, cfp_popcount_index, mol_id_offset);
+        return -2;
+    }
+
+    if (fp_size > (cfp_size - mol_id_offset)) {
+        fprintf(stderr, "CUDA error: invalid fp window (cfp_size=%zu, mol_offset=%zu, fp_size=%zu)\n",
+                cfp_size, mol_id_offset, fp_size);
+        return -2;
+    }
+
     const size_t clustersBytes = static_cast<size_t>(num_clusters) * cfp_size * sizeof(uint64_t);
     const size_t currentFpBytes = cfp_size * sizeof(uint64_t);
 
@@ -59,14 +86,16 @@ int find_matching_cluster_cuda(
     uint64_t *dCurrentFp = nullptr;
     int *dBestClusterId = nullptr;
 
-    if (cudaMalloc(&dClusterFps, clustersBytes) != cudaSuccess) {
+    if (cudaMalloc(reinterpret_cast<void **>(&dClusterFps), clustersBytes) != cudaSuccess) {
         return -2;
     }
-    if (cudaMalloc(&dCurrentFp, currentFpBytes) != cudaSuccess) {
+
+    if (cudaMalloc(reinterpret_cast<void **>(&dCurrentFp), currentFpBytes) != cudaSuccess) {
         cudaFree(dClusterFps);
         return -2;
     }
-    if (cudaMalloc(&dBestClusterId, sizeof(int)) != cudaSuccess) {
+
+    if (cudaMalloc(reinterpret_cast<void **>(&dBestClusterId), sizeof(int)) != cudaSuccess) {
         cudaFree(dClusterFps);
         cudaFree(dCurrentFp);
         return -2;
@@ -102,10 +131,21 @@ int find_matching_cluster_cuda(
         dBestClusterId
     );
 
-    if (cudaGetLastError() != cudaSuccess || cudaDeviceSynchronize() != cudaSuccess) {
+    cudaError_t launchErr = cudaGetLastError();
+    if (launchErr != cudaSuccess) {
         cudaFree(dClusterFps);
         cudaFree(dCurrentFp);
         cudaFree(dBestClusterId);
+        fprintf(stderr, "CUDA kernel launch error: %s\n", cudaGetErrorString(launchErr));
+        return -2;
+    }
+
+    cudaError_t syncErr = cudaDeviceSynchronize();
+    if (syncErr != cudaSuccess) {
+        cudaFree(dClusterFps);
+        cudaFree(dCurrentFp);
+        cudaFree(dBestClusterId);
+        fprintf(stderr, "CUDA kernel sync error: %s\n", cudaGetErrorString(syncErr));
         return -2;
     }
 
