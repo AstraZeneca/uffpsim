@@ -14,9 +14,6 @@
 #include <stdexcept>
 #include <omp.h>
 #include <H5Cpp.h>
-#ifdef USE_CUDA
-#include <cuda_runtime.h>
-#endif
 
 #include "innerClustering.h"
 #include "fpstore.h"
@@ -140,16 +137,14 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
     throw std::runtime_error("CUDA mode requested but binary is built without USE_CUDA");
 #else
     hsize_t totalSize = utils::sizeOfFingerPrintDatasetInH5(popcountGroup, "cfpData");
-    unsigned int num_fps_per_chunk = 1000;
+    unsigned int num_fps_per_chunk = 100000;
     hsize_t chunkSize = _fpstore->_CFPSize * num_fps_per_chunk;
 
     // Declare all resources upfront so the RAII guard below can manage them.
     uint64_t *cfp = nullptr;
-    bool cfp_pinned = false;
     const size_t initial_cluster_capacity = 4096;
     size_t cluster_capacity = initial_cluster_capacity;
     uint64_t *contiguous_cluster_fp = nullptr;
-    bool cluster_fp_pinned = false;
     CudaInnerClusteringContext *cuda_context = nullptr;
     std::vector<utils::dt_inner_clusters_fingerprints> clusters;
     uint64_t chunkCounter = 0, remainingSize = totalSize, currentSize = 0, fpIndex = 0;
@@ -159,17 +154,17 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
     // allocations are always freed.
     struct Guard {
         CudaInnerClusteringContext **ctx;
-        uint64_t **cfp; bool *cfp_pinned;
-        uint64_t **cluster_fp; bool *cluster_fp_pinned;
+        uint64_t **cfp;
+        uint64_t **cluster_fp;
         std::vector<utils::dt_inner_clusters_fingerprints> *clusters;
         ~Guard() {
             if (*ctx) { destroy_cuda_inner_clustering_context(*ctx); *ctx = nullptr; }
             if (*cluster_fp) {
-                if (*cluster_fp_pinned) cudaFreeHost(*cluster_fp); else free(*cluster_fp);
+                free(*cluster_fp);
                 *cluster_fp = nullptr;
             }
             if (*cfp) {
-                if (*cfp_pinned) cudaFreeHost(*cfp); else free(*cfp);
+                free(*cfp);
                 *cfp = nullptr;
             }
             for (auto &c : *clusters) {
@@ -177,21 +172,13 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
                 utils::free_dt_inner_clusters_fingerprints(c);
             }
         }
-    } guard = {&cuda_context, &cfp, &cfp_pinned, &contiguous_cluster_fp, &cluster_fp_pinned, &clusters};
+    } guard = {&cuda_context, &cfp, &contiguous_cluster_fp, &clusters};
 
     const size_t cfp_bytes = sizeof(uint64_t) * chunkSize;
-    if (cudaHostAlloc(reinterpret_cast<void **>(&cfp), cfp_bytes, cudaHostAllocPortable) == cudaSuccess) {
-        cfp_pinned = true;
-    } else {
-        cfp = (uint64_t *) malloc(cfp_bytes);
-    }
+    cfp = (uint64_t *) malloc(cfp_bytes);
 
     const size_t cluster_bytes = sizeof(uint64_t) * cluster_capacity * _fpstore->_CFPSize;
-    if (cudaHostAlloc(reinterpret_cast<void **>(&contiguous_cluster_fp), cluster_bytes, cudaHostAllocPortable) == cudaSuccess) {
-        cluster_fp_pinned = true;
-    } else {
-        contiguous_cluster_fp = (uint64_t *) malloc(cluster_bytes);
-    }
+    contiguous_cluster_fp = (uint64_t *) malloc(cluster_bytes);
 
     cuda_context = create_cuda_inner_clustering_context(
         _fpstore->_CFPSize,
@@ -217,18 +204,9 @@ void InnerClusteringAgent::_doInnerClusteringCUDA(int popCount, h5::Group *popco
         uint64_t *new_buffer = nullptr;
         size_t new_bytes = sizeof(uint64_t) * new_capacity * _fpstore->_CFPSize;
 
-        if (cluster_fp_pinned) {
-            if (cudaHostAlloc(reinterpret_cast<void **>(&new_buffer), new_bytes, cudaHostAllocPortable) != cudaSuccess) {
-                return false;
-            }
-            std::memcpy(new_buffer, contiguous_cluster_fp, sizeof(uint64_t) * cluster_capacity * _fpstore->_CFPSize);
-            cudaFreeHost(contiguous_cluster_fp);
-        } else
-        {
-            new_buffer = (uint64_t *) realloc(contiguous_cluster_fp, new_bytes);
-            if (new_buffer == nullptr) {
-                return false;
-            }
+        new_buffer = (uint64_t *) realloc(contiguous_cluster_fp, new_bytes);
+        if (new_buffer == nullptr) {
+            return false;
         }
 
         contiguous_cluster_fp = new_buffer;

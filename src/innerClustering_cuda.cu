@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <limits>
+#include <climits>
 #include <stdio.h>
 #include <cstring>
 
@@ -122,9 +123,22 @@ __global__ void findMatchingClusterKernel(
         return;
     }
 
+    // A plain global-memory load is not sufficient here because another thread may
+    // update bestClusterId concurrently. Use an atomic read so this thread sees a
+    // coherent value. We can only skip work when our clusterIdx cannot improve the
+    // current best match; otherwise a lower-index match could still exist.
+    const int bestSoFar = atomicAdd(bestClusterId, 0);
+    if (bestSoFar != INT_MAX && clusterIdx >= bestSoFar) {
+        return;
+    }
+
     const uint64_t *clusterFp = clusterFps + (static_cast<size_t>(clusterIdx) * cfpSize);
     uint64_t commonPopcnt = 0;
     for (size_t offset = 0; offset < fpSize; offset++) {
+        const int updatedBest = atomicAdd(bestClusterId, 0);
+        if (updatedBest != INT_MAX && clusterIdx >= updatedBest) {
+            return;
+        }
         commonPopcnt += static_cast<uint64_t>(__popcll(clusterFp[molIdOffset + offset] & currentFp[molIdOffset + offset]));
     }
 
@@ -295,12 +309,12 @@ int find_matching_cluster_in_chunk_cuda(
         return -2;
     }
 
-    int initialBest = std::numeric_limits<int>::max();
+    int initialBest = INT_MAX;
     if (cudaMemcpy(context->dBestClusterId, &initialBest, sizeof(int), cudaMemcpyHostToDevice) != cudaSuccess) {
         return -2;
     }
 
-    constexpr int threadsPerBlock = 256;
+    constexpr int threadsPerBlock = 512;
     const int blocks = (num_clusters + threadsPerBlock - 1) / threadsPerBlock;
     findMatchingClusterKernel<<<blocks, threadsPerBlock>>>(
         context->dClusterFps,
@@ -326,12 +340,12 @@ int find_matching_cluster_in_chunk_cuda(
         return -2;
     }
 
-    int bestClusterId = std::numeric_limits<int>::max();
+    int bestClusterId = INT_MAX;
     if (cudaMemcpy(&bestClusterId, context->dBestClusterId, sizeof(int), cudaMemcpyDeviceToHost) != cudaSuccess) {
         return -2;
     }
 
-    if (bestClusterId == std::numeric_limits<int>::max()) {
+    if (bestClusterId == INT_MAX) {
         return -1;
     }
     return bestClusterId;
@@ -355,7 +369,7 @@ int update_cluster_fp_with_chunk_fp_cuda(
         return -2;
     }
 
-    constexpr int threadsPerBlock = 256;
+    constexpr int threadsPerBlock = 512;
     updateClusterFpKernel<<<1, threadsPerBlock>>>(
         context->dClusterFps,
         context->dChunkFps + chunk_offset,
