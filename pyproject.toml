@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry"
 ]
 dependencies = [
-    "rdkit==2024.3.2",
-    "numpy==1.26.4",
-    "scipy==1.13",
+    "rdkit>=2024.3.2",
+    "numpy>=1.26.4",
+    "scipy>=1.13",
 ]
