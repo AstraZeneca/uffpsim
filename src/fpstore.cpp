@@ -105,7 +105,7 @@ FingerprintStore::FingerprintStore(const std::string& filename, int molIdMaxLeng
 
     _file = new h5::H5File(_filename, mode_flag);
     _root_group = new h5::Group(_file->openGroup("/"));
-    _molDataTable = new MolDataTable(_root_group, _root_group->nameExists(MolDataTable::table_name));
+    _molDataTable = new MolDataTable(_root_group, _root_group->nameExists(MolDataTable::table_name), _file_mode);
 
     if (((mode == "a") || (mode == "r")) && !magicNumberExists()) {
         throw std::runtime_error("The input h5 file is not created by uffpsim!");

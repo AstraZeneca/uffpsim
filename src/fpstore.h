@@ -374,6 +374,17 @@ public:
     void buildMolIdToIndexMap() { _molDataTable->buildMolIdToIndexMap(); }
 
     /**
+     * @brief Builds the serialized MolIdIndexTable in the HDF5 file.
+     *
+     * This method forces creation of the molecule ID to index mapping through the `MolDataTable` layer.
+     * When the file is opened in write or append mode, the mapping is also persisted as `MolIdIndexTable`
+     * so it can be loaded faster in later sessions.
+     *
+     * @return None.
+     */
+    void buildMolIdIndexTable() { _molDataTable->buildMolIdToIndexMap(); }
+
+    /**
      * @brief Retrieves the SMILES string associated with a given molecular ID from the HDF5 file.
      *
      * This method takes a molecular ID as input and searches for the corresponding molecular data in the HDF5 file.

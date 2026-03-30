@@ -79,6 +79,16 @@ This is required to access SMILES based on the given molecule ID.
 
 )%";
 
+const char* FpStoreBuildMolIdIndexTableDoc = R"%(Build the serialized ``MolIdIndexTable`` in the HDF5 file.
+
+This method builds the molecule ID to index mapping through the molecule data table layer.
+If the file is opened in write or append mode, the mapping is also stored in the HDF5 file as
+``MolIdIndexTable`` so future sessions can load it faster.
+
+In read-only mode, the in-memory map can still be built, but the serialized table is not written.
+
+)%";
+
 const char* FpStoreGetSmilesFromIdDoc = R"%(Retrieves the SMILES string associated with a given molecular ID from the HDF5 file.
 
 This method takes a molecular ID as input and searches for the corresponding molecular data in the HDF5 file.\
