@@ -216,6 +216,15 @@ class BuildExt(build_ext):
 
 setup(
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        "uffpsim.web_app": [
+            "templates/*.html",
+            "static/css/*.css",
+            "static/js/*.js",
+            "static/vendor/*",
+        ],
+    },
     ext_modules=setup_extension_modules(find_cuda_config()),
     cmdclass={"build_ext": BuildExt},
 )
