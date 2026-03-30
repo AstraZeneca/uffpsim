@@ -32,3 +32,6 @@ dependencies = [
 web = [
     "Flask>=3.0,<4",
 ]
+
+[project.scripts]
+uffpsim = "uffpsim.cli:main"
