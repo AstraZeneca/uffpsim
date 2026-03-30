@@ -301,6 +301,33 @@ def redo_inner_clustering(db_file: str, threshold: float, cluster_mode: str = "m
     fpstore.redo_clustering_write(threshold)
     del fpstore
 
+
+def build_mol_id_index_table(db_file: str) -> None:
+    """Builds the serialized MolIdIndexTable for an existing uffpsim HDF5 database.
+
+    Parameters
+    ----------
+    db_file : str
+        The path to the database file.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    Exception
+        If any error occurs while building the serialized molecule ID index table.
+    """
+    fpstore = uffpsimLib.FingerprintStore(db_file, mode="a")
+    try:
+        fpstore.build_mol_id_index_table()
+    except Exception as e:
+        fpstore.close()
+        raise e
+
+    fpstore.close()
+
 def update_database(input_file: str, db_file: str, mol_id_prop=None, info: dict[str, Any] | None=None):
     """Updates the database with new molecular fingerprints from the input file.
 

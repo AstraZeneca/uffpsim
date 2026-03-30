@@ -23,6 +23,11 @@ typedef struct {
     char smiles[SMILES_SIZE_IN_MOL_DATA_TABLE] = {""};
 } TMolData;
 
+typedef struct {
+    char id[ID_SIZE_IN_MOL_DATA_TABLE] = {""};
+    uint64_t index = 0;
+} TMolIdIndex;
+
 
 
 /**
@@ -42,6 +47,7 @@ class MolDataTable {
 
     private:    
         bool _table_exist = true;                        // flag to check if table `MoleculeDataTable` exists in HDF5 or not
+        std::string _file_mode = "r";                   // HDF5 file mode inherited from FingerprintStore
         h5::Group *_root_group;                          // HDF5 root group pointer
         hid_t _loc_id;                                   // location ID of the root group
         hid_t _table_id;                                 // ID of the table `MoleculeDataTable`
@@ -115,11 +121,20 @@ class MolDataTable {
          *
          * Note: The constructor performs error handling and exception handling to ensure that the initialization process is successful.
          */
-        MolDataTable(h5::Group *root_group, bool table_exist);
+        MolDataTable(h5::Group *root_group, bool table_exist, const std::string &file_mode = "r");
 
         // Public properties
         hsize_t _nrecords = 0;
         static const char *table_name;
+        static const char *mol_id_index_table_name;
+
+    private:
+        bool _canWriteSerializedMolIdToIndexMap() const;
+        bool _loadMolIdToIndexMapFromH5();
+        bool _writeMolIdToIndexMapToH5();
+        void _invalidateSerializedMolIdToIndexMap();
+
+    public:
         
         /**
          * The append method is responsible for appending new data records to the molecule data table in the HDF5 file.
