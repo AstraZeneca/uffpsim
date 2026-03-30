@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
+from pathlib import Path
 from typing import Any
 
 from .database import (
@@ -10,6 +12,7 @@ from .database import (
     create_database_parallel,
     redo_inner_clustering,
 )
+from .search_engine import UFFPSimSearchEngine
 
 
 def _json_or_string(value: str) -> dict[str, Any] | str:
@@ -73,6 +76,47 @@ def _add_launch_web_app_parser(subparsers: argparse._SubParsersAction[argparse.A
     parser.set_defaults(command=_run_launch_web_app)
 
 
+def _add_search_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser("search", help="Search one or more SMILES and write hits to CSV.")
+    parser.add_argument("-d", "--db-file", required=True, help="HDF5 database path.")
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("-q", "--smiles", help="Single SMILES query from command line.")
+    input_group.add_argument("-i", "--smiles-file", help="Path to input file containing one SMILES per line.")
+    parser.add_argument("-o", "--output-csv", required=True, help="Output CSV file path.")
+    parser.add_argument("-m", "--mode", choices=["memory", "disk"], default="memory", help="Search engine load mode.")
+    parser.add_argument("-t", "--threshold", type=float, default=0.6, help="Similarity threshold.")
+    parser.add_argument("-k", "--limit", type=int, default=10, help="Maximum hits per query.")
+    parser.add_argument("-s", "--include-hit-smiles", action="store_true", help="Include hit SMILES in output CSV.")
+    parser.set_defaults(command=_run_search_to_csv)
+
+
+def _load_smiles_queries(args: argparse.Namespace) -> list[str]:
+    if args.smiles is not None:
+        smiles = args.smiles.strip()
+        if not smiles:
+            raise ValueError("--smiles cannot be empty")
+        return [smiles]
+
+    if args.smiles_file is None:
+        raise ValueError("Provide either --smiles or --smiles-file")
+
+    smiles_path = Path(args.smiles_file)
+    if not smiles_path.is_file():
+        raise FileNotFoundError(f"SMILES input file not found: {smiles_path}")
+
+    smiles_list: list[str] = []
+    with smiles_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            candidate = line.strip()
+            if not candidate or candidate.startswith("#"):
+                continue
+            smiles_list.append(candidate)
+
+    if not smiles_list:
+        raise ValueError("No SMILES found in input file")
+    return smiles_list
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="uffpsim", description="UFFPSim command-line interface.")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -80,6 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_create_database_parser(subparsers)
     _add_redo_clustering_parser(subparsers)
     _add_build_index_parser(subparsers)
+    _add_search_parser(subparsers)
     _add_launch_web_app_parser(subparsers)
     return parser
 
@@ -118,6 +163,40 @@ def _run_redo_clustering(args: argparse.Namespace) -> int:
 
 def _run_build_mol_id_index_table(args: argparse.Namespace) -> int:
     build_mol_id_index_table(args.db_file)
+    return 0
+
+
+def _run_search_to_csv(args: argparse.Namespace) -> int:
+    smiles_queries = _load_smiles_queries(args)
+
+    engine = UFFPSimSearchEngine(args.db_file, mode=args.mode)
+    if args.include_hit_smiles:
+        engine.build_mol_id_to_index_map()
+
+    results = engine.batch_search(smiles_queries, args.threshold, args.limit)
+
+    output_path = Path(args.output_csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["query_index", "query_smiles", "hit_rank", "compound_id", "score", "hit_smiles", "error"])
+
+        for query_index, (query_smiles, hits) in enumerate(zip(smiles_queries, results), start=1):
+            if hits is None:
+                writer.writerow([query_index, query_smiles, "", "", "", "", "Invalid SMILES or fingerprint generation failed"])
+                continue
+
+            if len(hits) == 0:
+                writer.writerow([query_index, query_smiles, "", "", "", "", "No hits"])
+                continue
+
+            for hit_rank, (compound_id, score) in enumerate(hits, start=1):
+                hit_smiles = ""
+                if args.include_hit_smiles:
+                    hit_smiles = engine.get_smiles_for_id(compound_id)
+                writer.writerow([query_index, query_smiles, hit_rank, compound_id, float(score), hit_smiles, ""])
+
+    print(f"Wrote search results to: {output_path}")
     return 0
 
 
