@@ -25,7 +25,7 @@
         if (state.config.fp_type) rows.push(["Fingerprint type", state.config.fp_type]);
         if (state.config.fp_bits_size != null) rows.push(["FP size (bits)", state.config.fp_bits_size]);
         if (state.config.num_mols != null) rows.push(["Total compounds", Number(state.config.num_mols).toLocaleString()]);
-        if (state.config.cluster_threshold != null) rows.push(["Cluster threshold", state.config.cluster_threshold]);
+        if (state.config.cluster_threshold != null) rows.push(["Cluster threshold", Number(state.config.cluster_threshold).toFixed(2)]);
         rows.push(["Search mode", state.config.search_mode || "memory"]);
         rows.push(["Results mode", state.config.results_mode || "ids_only"]);
 
@@ -64,7 +64,7 @@
                     qi + 1,
                     csvEscape(result.query_smiles),
                     csvEscape(hit.compound_id),
-                    hit.score.toFixed(4),
+                    hit.score.toFixed(2),
                 ];
                 if (hasSmiles) row.push(csvEscape(hit.smiles || ""));
                 lines.push(row.join(","));
@@ -99,26 +99,13 @@
 
         const hasSmiles = results.some(r => r.hits && r.hits.some(h => h.smiles));
         const hasImage  = results.some(r => r.hits && r.hits.some(h => h.image));
+        const shouldExpandAll = results.length === 1;
+
+        const accordion = $('<div class="accordion" id="results-accordion"></div>');
 
         results.forEach((result, queryIndex) => {
-            const queryCard = $('<article class="query-card"></article>');
-
-            const queryImageHtml = result.query_image
-                ? `<img class="molecule-image" src="${result.query_image}" alt="Query ${queryIndex + 1}" style="max-width:140px">`
-                : "";
-
-            queryCard.append(`
-                <div class="query-card-header">
-                    <div class="d-flex gap-3 align-items-center flex-wrap">
-                        ${queryImageHtml}
-                        <div class="flex-grow-1">
-                            <h3 class="h5 mb-1">Query ${queryIndex + 1}</h3>
-                            <div class="smiles-block">${result.query_smiles}</div>
-                        </div>
-                        <span class="badge text-bg-primary">${result.hits ? result.hits.length : 0} hit(s)</span>
-                    </div>
-                </div>
-            `);
+            const collapseId = `collapse-query-${queryIndex}`;
+            const isExpanded = shouldExpandAll;
 
             let bodyHtml = "";
             if (result.error) {
@@ -131,7 +118,7 @@
                 if (hasImage)  headerCols += "<th>Structure</th>";
 
                 const rowsHtml = result.hits.map((hit, i) => {
-                    let cols = `<td>${i + 1}</td><td><code>${hit.compound_id}</code></td><td>${hit.score.toFixed(4)}</td>`;
+                    let cols = `<td>${i + 1}</td><td><code>${hit.compound_id}</code></td><td>${hit.score.toFixed(2)}</td>`;
                     if (hasSmiles) cols += `<td><span class="smiles-block">${hit.smiles || "—"}</span></td>`;
                     if (hasImage)  cols += hit.image
                         ? `<td><img class="hit-image" src="${hit.image}" alt="${hit.compound_id}"></td>`
@@ -147,9 +134,36 @@
                 </div>`;
             }
 
-            queryCard.append(`<div class="query-card-body">${bodyHtml}</div>`);
-            resultsContainer.append(queryCard);
+            const queryImageHtml = result.query_image
+                ? `<img class="molecule-image" src="${result.query_image}" alt="Query ${queryIndex + 1}" style="max-width:140px">`
+                : "";
+
+            const accordionItem = $(`
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button ${isExpanded ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
+                            <div class="d-flex gap-3 align-items-center flex-wrap w-100">
+                                ${queryImageHtml}
+                                <div class="flex-grow-1">
+                                    <div class="h6 mb-1">Query ${queryIndex + 1}</div>
+                                    <div class="smiles-block">${result.query_smiles}</div>
+                                </div>
+                                <span class="badge text-bg-primary">${result.hits ? result.hits.length : 0} hit(s)</span>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="${collapseId}" class="accordion-collapse collapse ${isExpanded ? 'show' : ''}" data-bs-parent="#results-accordion">
+                        <div class="accordion-body p-0">
+                            ${bodyHtml}
+                        </div>
+                    </div>
+                </div>
+            `);
+
+            accordion.append(accordionItem);
         });
+
+        resultsContainer.append(accordion);
 
         if (totalHits > 0) $("#download-csv").show();
     }
@@ -192,6 +206,29 @@
         });
     }
 
+    function onSmilesFileSelected(event) {
+        const input = event.target;
+        if (!input.files || !input.files.length) {
+            return;
+        }
+
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function (loadEvent) {
+            const text = String(loadEvent.target && loadEvent.target.result ? loadEvent.target.result : "");
+            const lines = text
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line && !line.startsWith("#"));
+            $("#smiles-input").val(lines.join("\n"));
+            setStatus("#search-status", `Loaded ${lines.length} SMILES from file.`, "success");
+        };
+        reader.onerror = function () {
+            setStatus("#search-status", "Failed to read SMILES file.", "error");
+        };
+        reader.readAsText(file);
+    }
+
     $(function () {
         loadConfig().then(() => {
             renderResults({ results: [] });
@@ -199,5 +236,6 @@
 
         $("#search-form").on("submit", submitSearch);
         $("#download-csv").on("click", downloadCSV);
+        $("#smiles-file-input").on("change", onSmilesFileSelected);
     });
 })(jQuery);

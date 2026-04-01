@@ -11,26 +11,31 @@
     <div class="page-shell">
         <header class="hero-panel container py-4 py-lg-5">
             <div class="hero-copy">
-                <p class="eyebrow mb-2">Ultra-Fast Fingerprint Similarity Search</p>
-                <h1 class="display-5 fw-semibold mb-3">UFFPSim Fingerprint Search</h1>
-                <p class="lead mb-0">Batch-search SMILES against a preloaded HDF5 fingerprint database and retrieve compound IDs with similarity scores.</p>
+                <p class="eyebrow mb-2">UFFPSim</p>
+                <h1 class="display-5 fw-semibold mb-3">Ultra-Fast Fingerprint Similarity Search</h1>
+                <p class="lead mb-0">Search SMILES against a preloaded fingerprint database and retrieve compound IDs with similarity scores.</p>
             </div>
         </header>
 
         <main class="container pb-5">
-            <div class="row g-4 align-items-start">
-                <div class="col-12 col-xl-4">
-                    <section class="panel-card mb-4">
+            <section class="panel-card mb-4">
+                <div class="row g-4 align-items-start">
+                    <div class="col-12 col-lg-8 order-lg-1">
+                        <h2 class="h4 mb-3">Search</h2>
+                    </div>
+                    <div class="col-12 col-lg-4 order-lg-2">
                         <h2 class="h4 mb-3">Database info</h2>
-                        <div id="db-info-panel">
-                            <div class="small text-body-secondary">Start the server with --db-file /path/to/database.h5</div>
-                        </div>
-                    </section>
+                    </div>
                 </div>
-
-                <div class="col-12 col-xl-8">
-                    <section class="panel-card mb-4">
-                        <h2 class="h4 mb-3">Batch search</h2>
+                <div class="row g-4 align-items-start">
+                    <div class="col-12 col-lg-4 order-lg-2">
+                        <div class="border rounded p-3 bg-light">
+                            <div id="db-info-panel">
+                                <div class="small text-body-secondary">Start the server with --db-file /path/to/database.h5</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-8 order-lg-1">
                         <form id="search-form" class="row g-3">
                             <div class="col-md-6">
                                 <label for="search-threshold" class="form-label">Similarity threshold</label>
@@ -41,28 +46,35 @@
                                 <input id="search-limit" class="form-control" type="number" min="1" max="100" step="1" value="10">
                             </div>
                             <div class="col-12">
-                                <label for="smiles-input" class="form-label">SMILES list</label>
-                                <textarea id="smiles-input" class="form-control code-field" rows="8" placeholder="One SMILES string per line"></textarea>
-                            </div>
-                            <div class="col-12 d-flex gap-2 align-items-center">
-                                <button id="search-button" class="btn btn-primary" type="submit">Search</button>
-                                <span id="search-status" class="small text-body-secondary"></span>
+                                <label for="smiles-file-input" class="form-label">Upload SMILES file</label>
+                                <input id="smiles-file-input" class="form-control" type="file" accept=".smi,.txt,.csv">
+                                <div class="form-text">Use a text file with one SMILES string per line.</div>
                             </div>
                         </form>
-                    </section>
-
-                    <section class="panel-card">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h2 class="h4 mb-0">Results</h2>
-                            <div class="d-flex gap-2 align-items-center">
-                                <span id="results-summary" class="small text-body-secondary"></span>
-                                <button id="download-csv" class="btn btn-sm btn-outline-primary" style="display:none">Download CSV</button>
-                            </div>
-                        </div>
-                        <div id="results-container" class="results-stack"></div>
-                    </section>
+                    </div>
                 </div>
-            </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-12">
+                        <label for="smiles-input" class="form-label">SMILES list</label>
+                        <textarea id="smiles-input" class="form-control code-field" rows="8" placeholder="One SMILES string per line" wrap="off"></textarea>
+                    </div>
+                    <div class="col-12 d-flex gap-2 align-items-center">
+                        <button id="search-button" class="btn btn-primary" type="submit" form="search-form">Search</button>
+                        <span id="search-status" class="small text-body-secondary"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h4 mb-0">Results</h2>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span id="results-summary" class="small text-body-secondary"></span>
+                        <button id="download-csv" class="btn btn-sm btn-outline-primary" style="display:none">Download CSV</button>
+                    </div>
+                </div>
+                <div id="results-container" class="results-stack"></div>
+            </section>
         </main>
     </div>
 
