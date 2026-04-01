@@ -59,6 +59,10 @@ def create_app(
 
     @app.get("/api/config")
     def config() -> Any:
+        cluster_threshold = app.config["CLUSTER_THRESHOLD"]
+        if cluster_threshold is not None:
+            cluster_threshold = round(float(cluster_threshold), 2)
+
         return jsonify(
             {
                 "db_file": app.config["DB_FILE"],
@@ -68,7 +72,7 @@ def create_app(
                 "fp_type": app.config["FP_TYPE"],
                 "fp_bits_size": app.config["FP_BITS_SIZE"],
                 "num_mols": app.config["NUM_MOLS"],
-                "cluster_threshold": app.config["CLUSTER_THRESHOLD"],
+                "cluster_threshold": cluster_threshold,
                 "queue_depth": app.search_queue_depth,
             }
         )
@@ -95,7 +99,10 @@ def create_app(
             with app.search_lock:
                 try:
                     engine = app.search_engine
-                    search_results = engine.batch_search(smiles_list, threshold, limit_by)
+                    if len(smiles_list) < 1000:
+                        search_results = [engine.search(smi, threshold, limit_by) for smi in smiles_list]
+                    else:
+                        search_results = engine.batch_search(smiles_list, threshold, limit_by)
                 except Exception as exc:
                     return jsonify({"error": str(exc)}), 400
         finally:
@@ -116,7 +123,7 @@ def create_app(
                 continue
 
             for compound_id, score in hits:
-                hit: dict[str, Any] = {"compound_id": compound_id, "score": float(score)}
+                hit: dict[str, Any] = {"compound_id": compound_id, "score": round(float(score), 2)}
                 if app.config["RESULTS_MODE"] == "full":
                     hit_smiles = engine.get_smiles_for_id(compound_id)
                     hit["smiles"] = hit_smiles
@@ -127,7 +134,7 @@ def create_app(
         return jsonify(
             {
                 "db_file": app.config["DB_FILE"],
-                "threshold": threshold,
+                "threshold": round(threshold, 2),
                 "limit_by": limit_by,
                 "results": response,
             }
