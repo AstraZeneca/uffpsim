@@ -4,8 +4,9 @@
  */
 
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
-#include <unordered_map>
+#include <limits>
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 #include <pybind11/pybind11.h>
@@ -36,8 +37,9 @@ FPSearchEngine::FPSearchEngine(const std::string& filename, std::string mode) {
     }
     
 
-    for (int i = 0; i <= _fpSize*128; i++) {
-        _div_lookup_table[i+1] = 1.0/(i+1);
+    _div_lookup_table.assign(static_cast<size_t>(_fpSize * 128 + 2), 0.0f);
+    for (int i = 0; i <= _fpSize * 128; i++) {
+        _div_lookup_table[i + 1] = 1.0f / static_cast<float>(i + 1);
     }
     py::gil_scoped_acquire acquire;
        
@@ -93,20 +95,31 @@ std::vector<std::tuple<std::string, float>> FPSearchEngine::search(const std::st
         return std::get<1>(a) > std::get<1>(b);
     });
 
+    // only return top results up to the specified limit
+    if (results.size() > static_cast<size_t>(limits)) {
+        results.resize(limits);
+    }
+
     delete[] queryCFp;
     py::gil_scoped_acquire acquire;
     return results;
 }
 
-void FPSearchEngine::_normal_search_memory(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> popCountBinsWithMaxScore, 
+void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& popCountBinsWithMaxScore, 
                                     uint64_t *queryCFp, float threshold, int limits,
                                     std::vector<std::tuple<std::string, float>> &results) {
     uint64_t commonPopCountThreshold = 0;
     float coeff, max_coeff = 0;
     uint64_t common_popcnt = 0;
-    std::unordered_map<int, std::vector<uint64_t>> common_popcnt_clusters_map;
-    //std::vector<std::vector<uint64_t>> common_popcnt_clusters_map;
-    common_popcnt_clusters_map.reserve(popCountBinsWithMaxScore.size());
+    constexpr uint64_t kUncomputedPopcnt = std::numeric_limits<uint64_t>::max();
+
+    std::vector<std::vector<uint64_t>> common_popcnt_clusters_cache;
+    common_popcnt_clusters_cache.reserve(popCountBinsWithMaxScore.size());
+    for (size_t i = 0; i < popCountBinsWithMaxScore.size(); ++i) {
+        common_popcnt_clusters_cache.emplace_back(
+            popCountBinsWithMaxScore[i].inner_clusters_fingerprints.num_clusters,
+            kUncomputedPopcnt);
+    }
 
     int num_hits = 0;
     //int binsLoopOver = 0;
@@ -121,10 +134,12 @@ void FPSearchEngine::_normal_search_memory(std::vector<utils::dt_inner_clusters_
         threshold_vec.push_back(static_cast<float>(tenth) * kStep);
     }
 
-    std::vector<std::vector<bool>> clusters_done;
+    std::vector<std::vector<uint8_t>> clusters_done;
     clusters_done.reserve(popCountBinsWithMaxScore.size());
     for (size_t i = 0; i < popCountBinsWithMaxScore.size(); ++i) {
-        clusters_done.push_back(std::vector<bool>(popCountBinsWithMaxScore[i].inner_clusters_fingerprints.num_clusters, false));
+        clusters_done.emplace_back(
+            popCountBinsWithMaxScore[i].inner_clusters_fingerprints.num_clusters,
+            static_cast<uint8_t>(0));
     }
 
     float running_threshold = 0;
@@ -140,28 +155,24 @@ void FPSearchEngine::_normal_search_memory(std::vector<utils::dt_inner_clusters_
 
             //std::cout<< "popCount: " << inner_clusters_fingerprints.popCount << ", maxPopCountWithQuery: " << popCountBinsWithMaxScore[i].maxPopCountWithQuery 
             //        << ", commonPopCountThreshold: " << commonPopCountThreshold 
-            //       << ", maxScore: " << popCountBinsWithMaxScore[i].score << std::endl;
+            //        << ", maxScore: " << popCountBinsWithMaxScore[i].score << std::endl;
 
             uint64_t *clusterFp_ptr = inner_clusters_fingerprints.clusterFp;
             uint64_t *fp_ptr = inner_clusters_fingerprints.fp;
             uint64_t inner_start = 0;
-            if (common_popcnt_clusters_map.find(inner_clusters_fingerprints.popCount) == common_popcnt_clusters_map.end()) {
-                common_popcnt_clusters_map[inner_clusters_fingerprints.popCount] = std::vector<uint64_t>();
-                common_popcnt_clusters_map[inner_clusters_fingerprints.popCount].reserve(inner_clusters_fingerprints.num_clusters);
-            }
+            std::vector<uint64_t>& bin_common_popcnt_cache = common_popcnt_clusters_cache[i];
             for(size_t cid=0; cid < inner_clusters_fingerprints.num_clusters; cid++, clusterFp_ptr += _CFPSize) {
 
-                if (common_popcnt_clusters_map[inner_clusters_fingerprints.popCount].size() <= cid) {
+                common_popcnt = bin_common_popcnt_cache[cid];
+                if (common_popcnt == kUncomputedPopcnt) {
                     common_popcnt = bitwise_and_popcount(clusterFp_ptr+_molIdOffset, queryCFp+_molIdOffset, _fpSize);
-                    common_popcnt_clusters_map[inner_clusters_fingerprints.popCount].push_back(common_popcnt);
-                } else {
-                    common_popcnt = common_popcnt_clusters_map[inner_clusters_fingerprints.popCount][cid];
+                    bin_common_popcnt_cache[cid] = common_popcnt;
                 }
             
                 if (common_popcnt >= commonPopCountThreshold && !clusters_done[i][cid]) {
-                    clusters_done[i][cid] = true;
+                    clusters_done[i][cid] = 1;
                     uint64_t inner_end = clusterFp_ptr[0];
-                    for (auto i = inner_start; i < inner_end; i+=_CFPSize, fp_ptr += _CFPSize) {
+                    for (auto fp_idx = inner_start; fp_idx < inner_end; fp_idx += _CFPSize, fp_ptr += _CFPSize) {
 
                         common_popcnt = bitwise_and_popcount(fp_ptr+_molIdOffset, queryCFp+_molIdOffset, _fpSize);
 
@@ -169,7 +180,9 @@ void FPSearchEngine::_normal_search_memory(std::vector<utils::dt_inner_clusters_
                             coeff =  TanimotoCoeff(common_popcnt, queryCFp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
                             if (coeff >= threshold) {
                                 results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
-                                if (coeff > max_coeff) max_coeff = coeff;
+
+                                // counting running hits for early stopping of bins loop
+                                if (coeff >= popCountBinsWithMaxScore[i].score) num_hits++;
                             }
                         //}
                     }
@@ -178,12 +191,13 @@ void FPSearchEngine::_normal_search_memory(std::vector<utils::dt_inner_clusters_
                 }
                 inner_start = clusterFp_ptr[0];
             }
-            
-            num_hits = 0;
-            for (auto &r : results) {
-                if (std::get<1>(r) >= popCountBinsWithMaxScore[i].score) {
-                    num_hits++;
-                }
+        }
+
+        //re-count hits
+        num_hits = 0;
+        for (auto &r : results) {
+            if (std::get<1>(r) >= running_threshold) {
+                num_hits++;
             }
         }
     }
@@ -243,7 +257,7 @@ void FPSearchEngine::_normal_search_memory_old(std::vector<utils::dt_inner_clust
 }
 */
 
-void FPSearchEngine::_normal_search_disk(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> popCountBinsWithMaxScore, 
+void FPSearchEngine::_normal_search_disk(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& popCountBinsWithMaxScore, 
                                     uint64_t *queryCFp, float threshold, int limits,
                                     std::vector<std::tuple<std::string, float>> &results) {
     uint64_t commonPopCountThreshold = 0;
