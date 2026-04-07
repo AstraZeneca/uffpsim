@@ -4,6 +4,7 @@
  */
 
 #include <iostream>
+#include <cstdint>
 #include <map>
 #include <vector>
 #include <tuple>
@@ -19,7 +20,7 @@ class FPSearchEngine {
     private:
 
         using NormalSearchFn = void (FPSearchEngine::*)(
-            std::vector<utils::dt_inner_clusters_fingerprints_maxscore>,
+            const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>&,
             uint64_t *,
             float,
             int,
@@ -47,10 +48,10 @@ class FPSearchEngine {
          *
          * Note: The _normal_search method assumes that the inner_clusters_fingerprints_maxscore vector is sorted by the maximum score in descending order.
          */
-        void _normal_search_memory(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
+        void _normal_search_memory(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
                             float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
 
-        void _normal_search_disk(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
+        void _normal_search_disk(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
                     float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
 
         /**
@@ -114,7 +115,7 @@ class FPSearchEngine {
         int _molIdOffset;
         int _CFPPopCountIndex;
         int _fpEndIndex;
-        std::map<int, float> _div_lookup_table;
+        std::vector<float> _div_lookup_table;
 
         FingerprintStore *_fpStore; // pointer to the fingerprint store
 
