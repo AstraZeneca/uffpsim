@@ -42,10 +42,12 @@ namespace utils {
      * Members:
      * - inner_clusters_fingerprints: A dt_inner_clusters_fingerprints struct representing the cluster fingerprints and fingerprints.
      * - score: A float representing the score associated with the cluster fingerprints and fingerprints.
+     * - threshold: A float representing the threshold for the cluster fingerprints and fingerprints.
      */
     typedef struct {
         utils::dt_inner_clusters_fingerprints inner_clusters_fingerprints;
         float score;
+        int maxPopCountWithQuery=0;
     } dt_inner_clusters_fingerprints_maxscore;
 
     /**
