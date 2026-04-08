@@ -111,8 +111,15 @@ void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clu
     uint64_t commonPopCountThreshold = 0;
     float coeff, max_coeff = 0;
     uint64_t common_popcnt = 0;
+    int num_hits = 0;
     constexpr uint64_t kUncomputedPopcnt = std::numeric_limits<uint64_t>::max();
+    float running_threshold = 0;
 
+    // cache for common popcount of query with cluster fps for each popcount bin to avoid 
+    // repeated computation of common popcount for same cluster fps when iterating multiple
+    // times over the same popcount bin for different thresholds (since clusters that do 
+    // not qualify the threshold in one iteration might qualify in another iteration with 
+    // lower threshold)
     std::vector<std::vector<uint64_t>> common_popcnt_clusters_cache;
     common_popcnt_clusters_cache.reserve(popCountBinsWithMaxScore.size());
     for (size_t i = 0; i < popCountBinsWithMaxScore.size(); ++i) {
@@ -121,8 +128,8 @@ void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clu
             kUncomputedPopcnt);
     }
 
-    int num_hits = 0;
-    //int binsLoopOver = 0;
+    // build vector of thresholds to iterate over starting from 1.0 and decreasing by 0.1 down 
+    // to the input threshold (inclusive)
     constexpr float kStep = 0.1f;
     std::vector<float> threshold_vec;
     threshold_vec.reserve(11);
@@ -134,6 +141,8 @@ void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clu
         threshold_vec.push_back(static_cast<float>(tenth) * kStep);
     }
 
+    // to keep track of clusters already processed for each popcount bin across different 
+    // thresholds iterations
     std::vector<std::vector<uint8_t>> clusters_done;
     clusters_done.reserve(popCountBinsWithMaxScore.size());
     for (size_t i = 0; i < popCountBinsWithMaxScore.size(); ++i) {
@@ -142,12 +151,14 @@ void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clu
             static_cast<uint8_t>(0));
     }
 
-    float running_threshold = 0;
+    // iterating over thresholds starting from 1.0 and decreasing down to the input threshold (inclusive)
     for (size_t t=0; t < threshold_vec.size() && num_hits < limits; t++) {
         running_threshold = threshold_vec[t];
 
         //std::cout <<"running_threshold: " << running_threshold << ", num_hits: " << num_hits << std::endl;
 
+        // iterating over popcount bins in order of their max score with query starting from highest until 
+        // the max score is higher than the current threshold and required hits are not found yet
         for( size_t i=0; i < popCountBinsWithMaxScore.size() && running_threshold <= popCountBinsWithMaxScore[i].score && num_hits < limits; i++ ) {
 
             utils::dt_inner_clusters_fingerprints inner_clusters_fingerprints = popCountBinsWithMaxScore[i].inner_clusters_fingerprints;
@@ -164,27 +175,27 @@ void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clu
             for(size_t cid=0; cid < inner_clusters_fingerprints.num_clusters; cid++, clusterFp_ptr += _CFPSize) {
 
                 common_popcnt = bin_common_popcnt_cache[cid];
-                if (common_popcnt == kUncomputedPopcnt) {
+                if (common_popcnt == kUncomputedPopcnt) { // if common popcount for this cluster fps is not computed yet, compute and cache it
                     common_popcnt = bitwise_and_popcount(clusterFp_ptr+_molIdOffset, queryCFp+_molIdOffset, _fpSize);
                     bin_common_popcnt_cache[cid] = common_popcnt;
                 }
             
+                // if common popcount of query with cluster fps is higher than the threshold and 
+                // cluster is not processed yet in previous iterations for higher thresholds, then
+                // process the cluster for potential hits, otherwise skip the cluster
                 if (common_popcnt >= commonPopCountThreshold && !clusters_done[i][cid]) {
                     clusters_done[i][cid] = 1;
                     uint64_t inner_end = clusterFp_ptr[0];
                     for (auto fp_idx = inner_start; fp_idx < inner_end; fp_idx += _CFPSize, fp_ptr += _CFPSize) {
 
                         common_popcnt = bitwise_and_popcount(fp_ptr+_molIdOffset, queryCFp+_molIdOffset, _fpSize);
+                        coeff =  TanimotoCoeff(common_popcnt, queryCFp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
+                        if (coeff >= threshold) {
+                            results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
 
-                        //if (common_popcnt >= commonPopCountMinThreshold) {
-                            coeff =  TanimotoCoeff(common_popcnt, queryCFp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
-                            if (coeff >= threshold) {
-                                results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
-
-                                // counting running hits for early stopping of bins loop
-                                if (coeff >= popCountBinsWithMaxScore[i].score) num_hits++;
-                            }
-                        //}
+                            // counting running hits for early stopping of bins loop
+                            if (coeff >= popCountBinsWithMaxScore[i].score) num_hits++;
+                        }
                     }
                 } else {
                     fp_ptr += clusterFp_ptr[0] - inner_start;
@@ -203,7 +214,14 @@ void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clu
     }
 }
 
-/*
+/* ** OLD VERSION of search function
+    * This version go through all clusters that qualify according to the input threshold.
+    * It means it would calculate for all fingerprints in those clusters, which might not
+    * be required when hits are found early on during the search and requested limits are reached 
+    * before going through all clusters that qualify according to the input threshold.
+    * This severely slows down when top-k hits are requested with low threshold.
+    * 
+    * 
 void FPSearchEngine::_normal_search_memory_old(std::vector<utils::dt_inner_clusters_fingerprints_maxscore> popCountBinsWithMaxScore, 
                                     uint64_t *queryCFp, float threshold, int limits,
                                     std::vector<std::tuple<std::string, float>> &results) {
@@ -326,16 +344,13 @@ void FPSearchEngine::_normal_search_disk(const std::vector<utils::dt_inner_clust
                     for (auto fp_idx = inner_start; fp_idx < inner_end; fp_idx += _CFPSize, fp_ptr += _CFPSize) {
 
                         common_popcnt = bitwise_and_popcount(fp_ptr+_molIdOffset, queryCFp+_molIdOffset, _fpSize);
+                        coeff =  TanimotoCoeff(common_popcnt, queryCFp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
+                        if (coeff >= threshold) {
+                            results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
 
-                        //if (common_popcnt >= commonPopCountMinThreshold) {
-                            coeff =  TanimotoCoeff(common_popcnt, queryCFp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
-                            if (coeff >= threshold) {
-                                results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
-
-                                // counting running hits for early stopping of bins loop
-                                if (coeff >= popCountBinsWithMaxScore[i].score) num_hits++;
-                            }
-                        //}
+                            // counting running hits for early stopping of bins loop
+                            if (coeff >= popCountBinsWithMaxScore[i].score) num_hits++;
+                        }
                     }
                     free(fp_ptr - (inner_end - inner_start)); // free memory allocated for fps read from disk
                 }
