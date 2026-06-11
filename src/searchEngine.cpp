@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <pybind11/stl.h>
@@ -16,6 +17,9 @@
 namespace py = pybind11;
 
 FPSearchEngine::FPSearchEngine(const std::string& filename, std::string mode) {
+    if (!std::filesystem::exists(filename)) {
+        throw FileNotFoundException("Database file not found: '" + filename + "'");
+    }
     _fpStore = new FingerprintStore(filename);
     _molIdMaxLength = _fpStore->_molIdMaxLength;
     _fpSize = _fpStore->_fpSize;
