@@ -75,7 +75,7 @@ void FingerprintStore::close() {
 }
 
 void FingerprintStore::freeMemory() {
-    for(int pidx = 0; pidx < _popCountBins.size(); pidx++) {
+    for(size_t pidx = 0; pidx < _popCountBins.size(); pidx++) {
         free(_fp_inner_clusters_by_popcount[pidx].clusterFp);
         if (_fp_inner_clusters_by_popcount[pidx].fp != nullptr)
             free(_fp_inner_clusters_by_popcount[pidx].fp);
