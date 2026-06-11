@@ -11,7 +11,7 @@ PYBIND11_MODULE(uffpsimLib, m) {
     static py::exception<FileNotFoundException> fileNotFoundEx(m, "FileNotFoundError", PyExc_FileNotFoundError);
     py::register_exception_translator([](std::exception_ptr p) {
         try { if (p) std::rethrow_exception(p); }
-        catch (const FileNotFoundException &e) { fileNotFoundEx(e.what()); }
+        catch (const FileNotFoundException &e) { py::set_error(fileNotFoundEx, e.what()); }
     });
 
     m.doc() = R"pbdoc(

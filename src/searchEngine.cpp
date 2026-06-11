@@ -113,7 +113,7 @@ void FPSearchEngine::_normal_search_memory(const std::vector<utils::dt_inner_clu
                                     uint64_t *queryCFp, float threshold, int limits,
                                     std::vector<std::tuple<std::string, float>> &results) {
     uint64_t commonPopCountThreshold = 0;
-    float coeff, max_coeff = 0;
+    float coeff;
     uint64_t common_popcnt = 0;
     int num_hits = 0;
     constexpr uint64_t kUncomputedPopcnt = std::numeric_limits<uint64_t>::max();
@@ -283,7 +283,7 @@ void FPSearchEngine::_normal_search_disk(const std::vector<utils::dt_inner_clust
                                     uint64_t *queryCFp, float threshold, int limits,
                                     std::vector<std::tuple<std::string, float>> &results) {
     uint64_t commonPopCountThreshold = 0;
-    float coeff, max_coeff = 0;
+    float coeff;
     uint64_t common_popcnt = 0;
     constexpr uint64_t kUncomputedPopcnt = std::numeric_limits<uint64_t>::max();
 
