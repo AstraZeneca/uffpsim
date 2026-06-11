@@ -14,6 +14,10 @@
 
 #include "fpstore.h"
 
+struct FileNotFoundException : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 #define TanimotoCoeff(common, query, target, lookup_table) common*lookup_table[query+target-common]
 
 class FPSearchEngine {

@@ -8,6 +8,12 @@
 namespace py = pybind11;
 
 PYBIND11_MODULE(uffpsimLib, m) {
+    static py::exception<FileNotFoundException> fileNotFoundEx(m, "FileNotFoundError", PyExc_FileNotFoundError);
+    py::register_exception_translator([](std::exception_ptr p) {
+        try { if (p) std::rethrow_exception(p); }
+        catch (const FileNotFoundException &e) { fileNotFoundEx(e.what()); }
+    });
+
     m.doc() = R"pbdoc(
         uffpsimLib
         ---------
