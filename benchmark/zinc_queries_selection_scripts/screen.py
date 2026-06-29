@@ -1,33 +1,54 @@
-import glob
+from pathlib import Path
 import sys
+
 from uffpsim import UFFPSimSearchEngine
 
-def get_smiles_batch():
-    count = 0
-    mol_data = []
-    for filename in glob.glob(f'../data/{sys.argv[1]}/*/*.smi',):
-        with open(filename) as f:
-            f.readline()
+
+BATCH_SIZE = 1000
+SEARCH_THRESHOLD = 0.5
+TOP_K = 1
+
+
+def get_smiles_batches(dataset: str, batch_size: int = BATCH_SIZE):
+    batch = []
+
+    for smi_file in Path("../data", dataset).glob("*/*.smi"):
+        with smi_file.open() as f:
+            next(f)  # Skip header
+
             for line in f:
-                d = line.split()
-                mol_data.append(d)
+                batch.append(line.split())
 
-                if len(mol_data) == 1000:
-                    yield mol_data
-                    mol_data = []
+                if len(batch) >= batch_size:
+                    yield batch
+                    batch = []
 
-    yield mol_data
-
-
+    if batch:
+        yield batch
 
 
-search_engine = UFFPSimSearchEngine("../../chembl_2048b.h5")
+def main():
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <dataset>")
+        sys.exit(1)
 
-for mol_data in get_smiles_batch():
-    result = search_engine.batch_search([d[0] for d in mol_data], 0.6, 1)
-    for d, r in zip(mol_data, result):
-        if len(r) > 0:
-            smiles = d[0]
-            zincId = d[1]
+    search_engine = UFFPSimSearchEngine("../../chembl_2048b.h5")
+
+    for batch in get_smiles_batches(sys.argv[1]):
+        smiles_list = [smiles for smiles, *_ in batch]
+        results = search_engine.batch_search(
+            smiles_list,
+            SEARCH_THRESHOLD,
+            TOP_K,
+        )
+
+        for (smiles, zinc_id, *_), matches in zip(batch, results):
+            if not matches:
+                continue
+
             cfp = search_engine.getCompactFingerPrintArray(smiles)
-            print(smiles, zincId, cfp[-1], r[0][1])
+            print(smiles, zinc_id, cfp[-1], matches[0][1])
+
+
+if __name__ == "__main__":
+    main()
