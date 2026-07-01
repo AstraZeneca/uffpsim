@@ -7,12 +7,13 @@ from uffpsim import UFFPSimSearchEngine
 BATCH_SIZE = 1000
 SEARCH_THRESHOLD = 0.5
 TOP_K = 1
+DATA_DIR = Path(__file__).parent / "../data/zinc_tranches"
 
 
-def get_smiles_batches(dataset: str, batch_size: int = BATCH_SIZE):
+def get_smiles_batches(batch_size: int = BATCH_SIZE):
     batch = []
 
-    for smi_file in Path("../data", dataset).glob("*/*.smi"):
+    for smi_file in DATA_DIR.glob("*.smi"):
         with smi_file.open() as f:
             next(f)  # Skip header
 
@@ -28,13 +29,9 @@ def get_smiles_batches(dataset: str, batch_size: int = BATCH_SIZE):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <dataset>")
-        sys.exit(1)
-
     search_engine = UFFPSimSearchEngine("../../chembl_2048b.h5")
 
-    for batch in get_smiles_batches(sys.argv[1]):
+    for batch in get_smiles_batches():
         smiles_list = [smiles for smiles, *_ in batch]
         results = search_engine.batch_search(
             smiles_list,

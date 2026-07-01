@@ -167,8 +167,9 @@ cython_debug/
 #.idea/
 
 # data folder
-data/*
+data/
 
 # Custom files
 snippets.sh
 chembl_33.sdf.gz
+failed_urls.uri
