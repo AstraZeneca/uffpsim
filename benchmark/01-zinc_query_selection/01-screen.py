@@ -29,7 +29,7 @@ def get_smiles_batches(batch_size: int = BATCH_SIZE):
 
 
 def main():
-    search_engine = UFFPSimSearchEngine("../../chembl_2048b.h5")
+    search_engine = UFFPSimSearchEngine("chembl_2048b.h5")
 
     for batch in get_smiles_batches():
         smiles_list = [smiles for smiles, *_ in batch]
