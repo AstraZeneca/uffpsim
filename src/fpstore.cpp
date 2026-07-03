@@ -25,7 +25,8 @@ FingerprintStore::~FingerprintStore() {
 }
 
 void FingerprintStore::close() {
-    // close groups for population count bins and clusters, these are opened when search is performed directly from disk
+    // close groups for population count bins and clusters
+    // these are opened when search is performed directly from disk
     if (_popCountBinsGroup != nullptr) {
         // clear _popCountToClustersGroupMap
         for (auto& entry : _popCountToClustersGroupMap) {
