@@ -6,8 +6,7 @@ __pycache__/
 *$py.class
 
 # exclude any hdf5 file
-tests/*.h5
-test/*.h5
+*.h5
 
 # C extensions
 *.so
@@ -168,6 +167,10 @@ cython_debug/
 
 # data folder
 data/
+
+# validation archives
+chembl
+uffpsim_chembl_35.tar.gz
 
 # Custom files
 snippets.sh
