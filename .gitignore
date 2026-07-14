@@ -171,6 +171,8 @@ data/
 # validation archives
 chembl
 uffpsim_chembl_35.tar.gz
+pubchem_top_k
+uffpsim_pubchem.tar.gz
 
 # Custom files
 snippets.sh
