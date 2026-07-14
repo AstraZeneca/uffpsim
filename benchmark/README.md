@@ -1,5 +1,17 @@
 # Benchmarking UFFPSim Performance
 
+## Installation of UFFPSim
+
+All benchmark is done using the ``sim_ops`` branch of the github repository. In this branch,
+search results also returns the number of scanned fingerprints during the search.
+
+```bash
+conda env create --prefix ./venv --file dev-environment.yaml # Create development conda environment
+conda activate ./venv
+git checkout -b sim-ops # necessary for the number of scanned fingerprints during the search
+UFFPSIM_NATIVE=1 pip install .
+```
+
 ## Slow vs Fast Search Query
 
 The algorithm implemented in [FPSim2](https://github.com/chembl/FPSim2) is fastest when hits are found with very high similarity, for example `1.0`. As the maximum similarity of the hits decreases, the search space widens, resulting in longer search times. Therefore, search performance depends on the similarity of a query molecule to its closest match in the target database.
