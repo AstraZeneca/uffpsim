@@ -1,5 +1,8 @@
 web-app/static/vendor/*
 
+# uv files
+uv.lock
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -170,11 +173,16 @@ data/
 
 # validation archives
 chembl
+chembl_35_benchmark
 uffpsim_chembl_35.tar.gz
 pubchem_top_k
 uffpsim_pubchem.tar.gz
+zinc_top_k
+uffpsim_zinc20.tar.gz
 
 # Custom files
 snippets.sh
 chembl_33.sdf.gz
 failed_urls.uri
+download-checkpoint.dat
+not-downloaded.dat
