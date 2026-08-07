@@ -17,6 +17,7 @@ blocker = rdBase.BlockLogs()
 MOLFILE_RE = r" [vV][23]000$"
 
 FP_TYPES = [ "Morgan", "RDKit", "AtomPair", "TopologicalTorsion", "MACCSKeys", "Avalon", "RDKPatternFingerprint"]
+"""Supported fingerprint type names."""
 
 FP_TYPE_GENERATORS = {
     "Morgan": rdFingerprintGenerator.GetMorganGenerator,
@@ -83,6 +84,7 @@ FP_TYPE_DEFAULT_PARAMETERS = {
     },
     "RDKPatternFingerprint": {"fpSize": 2048, "atomCounts": [], "setOnlyBits": None},
 }
+"""Default parameter dictionaries for each supported fingerprint type."""
 
 class FPCalculator:
     """A class for calculating fingerprints."""

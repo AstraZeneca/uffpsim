@@ -1,5 +1,6 @@
-# Ultrafast Fingerprint Similarity (`UFFPSim`) search
-A Python library implementing algorithm for searching large chemistry database with ultra-fast performance.
+# Ultrafast Fingerprint Similarity (`UFFPSim`)
+
+**UFFPSim** is a high-performance library for exact chemical fingerprint similarity search over large molecular databases. It extends the BitBound algorithm with a second pruning stage based on clustered fingerprints within each popcount bin, reducing the number of exact Tanimoto comparisons required. The library supports both in-memory search for high-throughput screening and disk-based search for databases that exceed available RAM, enabling exact queries on databases with up to a billion compounds.
 
 # Installation
 The simplest way to install is:
@@ -36,6 +37,22 @@ This will compile and build `uffpsim` with AVX512-VPOPCNTDQ support.
     UFFPSIM_AVX512=1 pip install -v .
 
 # How to use?
+
+The package can be used as a Python library or as the command.
+
+## Command line interface (CLI)
+
+
+
+| Command                    | Description                                                                 |
+|---------------------------|-----------------------------------------------------------------------------|
+| ``create-database``       | Create a new uffpsim HDF5 database from a molecular input file.             |
+| ``redo-clustering``       | Redo inner clustering for an existing database with a new similarity threshold. |
+| ``build-mol-id-index-table`` | Build serialized MolIdIndexTable for an existing database.              |
+| ``search``                | Search one or more SMILES against the database and write hits to a CSV file.   |
+| ``launch-web-app``        | Launch the uffpsim interactive web application for visual similarity searching. |
+
+**For more details about the CLIs, visit the documentation site.**
 
 ## Creating database
 
