@@ -12,11 +12,13 @@ Downloading Example Data
 
 The following command downloads the ChEMBL 35 database to use as an example:
 
-.. code-block:: bash
+.. tab:: Bash
 
-    curl https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/releases/chembl_35/chembl_35.sdf.gz -o ./chembl_35.sdf.gz
-    ls -artl chembl_35.sdf.gz
-    # -rw-rw-r-- 1 user user 770312723 Jun 11 12:28 chembl_35.sdf.gz
+   .. code-block:: bash
+
+      curl https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/releases/chembl_35/chembl_35.sdf.gz -o ./chembl_35.sdf.gz
+      ls -artl chembl_35.sdf.gz
+      # -rw-rw-r-- 1 user user 770312723 Jun 11 12:28 chembl_35.sdf.gz
 
 Molecule ID Configuration
 -------------------------
@@ -47,31 +49,35 @@ Serial Fingerprints, Single-Threaded Clustering
 
 Fingerprints are calculated one molecule at a time and clustering runs in a single thread. This is the simplest option and uses the least memory.
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import create_database
+   .. code-block:: python
 
-    create_database(
-        input_file='chembl_35.sdf.gz',
-        db_file='chembl_2048b.h5',
-        fp_type='Morgan',
-        fp_params={'fpSize': 2048, 'radius': 2},
-        gen_ids=True,
-        mol_id_prop=None,
-        mol_id_max_chars=15,
-        inner_clustering_threshold=0.15,
-    )
+      from uffpsim import create_database
 
-.. code-block:: bash
+      create_database(
+          input_file='chembl_35.sdf.gz',
+          db_file='chembl_2048b.h5',
+          fp_type='Morgan',
+          fp_params={'fpSize': 2048, 'radius': 2},
+          gen_ids=True,
+          mol_id_prop=None,
+          mol_id_max_chars=15,
+          inner_clustering_threshold=0.15,
+      )
 
-    uffpsim create-database \
-        --input-file chembl_35.sdf.gz \
-        --db-file chembl_2048b.h5 \
-        --fp-type Morgan \
-        --fp-size 2048 \
-        --radius 2 \
-        --mol-id-max-chars 15 \
-        --cluster-threshold 0.15
+.. tab:: Bash
+
+   .. code-block:: bash
+
+      uffpsim create-database \
+          --input-file chembl_35.sdf.gz \
+          --db-file chembl_2048b.h5 \
+          --fp-type Morgan \
+          --fp-size 2048 \
+          --radius 2 \
+          --mol-id-max-chars 15 \
+          --cluster-threshold 0.15
 
 Supported fingerprint types: ``Morgan``, ``RDKit``, ``AtomPair``, ``TopologicalTorsion``, ``MACCSKeys``, ``Avalon``, and ``RDKPatternFingerprint`` (default: ``Morgan``).
 
@@ -80,70 +86,78 @@ Serial Fingerprints, Parallel Clustering
 
 Fingerprint calculation is still serial, but the inner-clustering step uses multiple OpenMP threads within the same process. Set ``OMP_NUM_THREADS`` to control the thread count.
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import create_database
+   .. code-block:: python
 
-    create_database(
-        input_file='chembl_35.sdf.gz',
-        db_file='chembl_2048b.h5',
-        fp_type='Morgan',
-        fp_params={'fpSize': 2048, 'radius': 2},
-        gen_ids=True,
-        mol_id_prop=None,
-        mol_id_max_chars=15,
-        inner_clustering_threshold=0.15,
-        cluster_parallel=True,
-    )
+      from uffpsim import create_database
 
-.. code-block:: bash
+      create_database(
+          input_file='chembl_35.sdf.gz',
+          db_file='chembl_2048b.h5',
+          fp_type='Morgan',
+          fp_params={'fpSize': 2048, 'radius': 2},
+          gen_ids=True,
+          mol_id_prop=None,
+          mol_id_max_chars=15,
+          inner_clustering_threshold=0.15,
+          cluster_parallel=True,
+      )
 
-    export OMP_NUM_THREADS=4
-    uffpsim create-database \
-        --input-file chembl_35.sdf.gz \
-        --db-file chembl_2048b.h5 \
-        --fp-type Morgan \
-        --fp-size 2048 \
-        --radius 2 \
-        --mol-id-max-chars 15 \
-        --cluster-threshold 0.15 \
-        --cluster-parallel
+.. tab:: Bash
+
+   .. code-block:: bash
+
+      export OMP_NUM_THREADS=4
+      uffpsim create-database \
+          --input-file chembl_35.sdf.gz \
+          --db-file chembl_2048b.h5 \
+          --fp-type Morgan \
+          --fp-size 2048 \
+          --radius 2 \
+          --mol-id-max-chars 15 \
+          --cluster-threshold 0.15 \
+          --cluster-parallel
 
 Parallel Fingerprints, Parallel Clustering
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Fingerprint calculation is distributed across ``workers`` independent Python processes using ``ProcessPoolExecutor``, which bypasses the GIL and speeds up the RDKit computation step. Writing to the HDF5 file and inner-clustering remain serial and parallel (via OpenMP) respectively. Note that spawning multiple processes requires more memory than the serial approach.
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import create_database_parallel
+   .. code-block:: python
 
-    create_database_parallel(
-        input_file='chembl_35.sdf.gz',
-        db_file='chembl_2048b.h5',
-        workers=4,
-        fp_type='Morgan',
-        fp_params={'fpSize': 2048, 'radius': 2},
-        gen_ids=True,
-        mol_id_prop=None,
-        mol_id_max_chars=15,
-        inner_clustering_threshold=0.15,
-        cluster_parallel=True,
-    )
+      from uffpsim import create_database_parallel
 
-.. code-block:: bash
+      create_database_parallel(
+          input_file='chembl_35.sdf.gz',
+          db_file='chembl_2048b.h5',
+          workers=4,
+          fp_type='Morgan',
+          fp_params={'fpSize': 2048, 'radius': 2},
+          gen_ids=True,
+          mol_id_prop=None,
+          mol_id_max_chars=15,
+          inner_clustering_threshold=0.15,
+          cluster_parallel=True,
+      )
 
-    export OMP_NUM_THREADS=4
-    uffpsim create-database \
-        --input-file chembl_35.sdf.gz \
-        --db-file chembl_2048b.h5 \
-        --fp-type Morgan \
-        --fp-size 2048 \
-        --radius 2 \
-        --mol-id-max-chars 15 \
-        --cluster-threshold 0.15 \
-        --cluster-parallel \
-        --workers 4
+.. tab:: Bash
+
+   .. code-block:: bash
+
+      export OMP_NUM_THREADS=4
+      uffpsim create-database \
+          --input-file chembl_35.sdf.gz \
+          --db-file chembl_2048b.h5 \
+          --fp-type Morgan \
+          --fp-size 2048 \
+          --radius 2 \
+          --mol-id-max-chars 15 \
+          --cluster-threshold 0.15 \
+          --cluster-parallel \
+          --workers 4
 
 Parallel Fingerprints, Parallel Clustering (**CUDA**)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -151,38 +165,42 @@ Parallel Fingerprints, Parallel Clustering (**CUDA**)
 Inner clustering can be performed using the CUDA also. The CUDA implementation is faster than the OpenMP implementation.
 The CUDA implementation is available only when UFFPSim is compiled with CUDA support.
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import create_database_parallel
+   .. code-block:: python
 
-    create_database_parallel(
-        input_file='chembl_35.sdf.gz',
-        db_file='chembl_2048b.h5',
-        workers=4,
-        fp_type='Morgan',
-        fp_params={'fpSize': 2048, 'radius': 2},
-        gen_ids=True,
-        mol_id_prop=None,
-        mol_id_max_chars=15,
-        inner_clustering_threshold=0.15,
-        cluster_mode='cuda',
-        cluster_parallel=True,
-    )
+      from uffpsim import create_database_parallel
 
-.. code-block:: bash
+      create_database_parallel(
+          input_file='chembl_35.sdf.gz',
+          db_file='chembl_2048b.h5',
+          workers=4,
+          fp_type='Morgan',
+          fp_params={'fpSize': 2048, 'radius': 2},
+          gen_ids=True,
+          mol_id_prop=None,
+          mol_id_max_chars=15,
+          inner_clustering_threshold=0.15,
+          cluster_mode='cuda',
+          cluster_parallel=True,
+      )
 
-    export OMP_NUM_THREADS=4
-    uffpsim create-database \
-        --input-file chembl_35.sdf.gz \
-        --db-file chembl_2048b.h5 \
-        --fp-type Morgan \
-        --fp-size 2048 \
-        --radius 2 \
-        --mol-id-max-chars 15 \
-        --cluster-threshold 0.15 \
-        --cluster-parallel \
-        --cluster-mode cuda \
-        --workers 4
+.. tab:: Bash
+
+   .. code-block:: bash
+
+      export OMP_NUM_THREADS=4
+      uffpsim create-database \
+          --input-file chembl_35.sdf.gz \
+          --db-file chembl_2048b.h5 \
+          --fp-type Morgan \
+          --fp-size 2048 \
+          --radius 2 \
+          --mol-id-max-chars 15 \
+          --cluster-threshold 0.15 \
+          --cluster-parallel \
+          --cluster-mode cuda \
+          --workers 4
 
 Redoing Inner Clustering
 ------------------------
@@ -192,15 +210,19 @@ values for a new database. The clustering data is written back to the same file.
 
 .. note:: Three types of ``--cluster-mode`` are supported: ``memory``, ``disk``, and ``cuda``.
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import redo_inner_clustering
+   .. code-block:: python
 
-    redo_inner_clustering("chembl_2048b.h5", 0.1, cluster_parallel=True)
+      from uffpsim import redo_inner_clustering
 
-.. code-block:: bash
+      redo_inner_clustering("chembl_2048b.h5", 0.1, cluster_parallel=True)
 
-    uffpsim redo-clustering --db-file chembl_2048b.h5 --threshold 0.1 --cluster-parallel
+.. tab:: Bash
+
+   .. code-block:: bash
+
+      uffpsim redo-clustering --db-file chembl_2048b.h5 --threshold 0.1 --cluster-parallel
 
 
 Building a Molecule ID Index Table
@@ -210,9 +232,11 @@ An index table maps molecule IDs to their row positions in the database, enablin
 It is required to enable fetching of SMILES of hit compounds, and therefore recommended if databse is to be used 
 with the **web-app and REST API**. Build this table via CLI before using it from either interface:
 
-.. code-block:: bash
+.. tab:: Bash
 
-    uffpsim build-mol-id-index-table --db-file chembl_2048b.h5
+   .. code-block:: bash
+
+      uffpsim build-mol-id-index-table --db-file chembl_2048b.h5
 
 
 .. warning:: This steps load the entire database into memory. For large databases, ensure sufficient RAM is available.
@@ -229,31 +253,35 @@ Each time only one SMILES string can be used as input. Use ``-o`` to write CLI r
 ``mode`` option control whether the database is loaded into memory or read from disk on demand. 
 The default is ``memory`` if supported by the database, otherwise ``disk``.
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import UFFPSimSearchEngine
+   .. code-block:: python
 
-    search_engine = UFFPSimSearchEngine("chembl_2048b.h5", mode='memory')
+      from uffpsim import UFFPSimSearchEngine
 
-    print(search_engine.fp_store.fp_params_json)
-    print(search_engine.fp_store.mol_id_max_chars)
-    print(search_engine.fp_store.fp_bits_size)
-    print(search_engine.fp_store.inner_clustering_threshold)
+      search_engine = UFFPSimSearchEngine("chembl_2048b.h5", mode='memory')
 
-    result_1 = search_engine.search("Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1", 0.8, limit_by=1)
-    print(result_1)
+      print(search_engine.fp_store.fp_params_json)
+      print(search_engine.fp_store.mol_id_max_chars)
+      print(search_engine.fp_store.fp_bits_size)
+      print(search_engine.fp_store.inner_clustering_threshold)
 
-    result_2 = search_engine.search("Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1", 0.6, limit_by=10)
-    print(result_2)
+      result_1 = search_engine.search("Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1", 0.8, limit_by=1)
+      print(result_1)
 
-.. code-block:: bash
+      result_2 = search_engine.search("Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1", 0.6, limit_by=10)
+      print(result_2)
 
-    uffpsim search \
-        --db-file chembl_2048b.h5 \
-        --query "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1" \
-        --threshold 0.6 \
-        --limit 10 \
-        --output-csv results.csv
+.. tab:: Bash
+
+   .. code-block:: bash
+
+      uffpsim search \
+          --db-file chembl_2048b.h5 \
+          --query "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1" \
+          --threshold 0.6 \
+          --limit 10 \
+          --output-csv results.csv
 
 CSV output writes columns ``mol_id,similarity`` with one row per hit (no header line).
 
@@ -265,104 +293,112 @@ Searching in batch mode could potentially speed-up the search by up to two times
 Provide a file with one SMILES per line using ``--input-file`` (CLI) or pass a list (API). 
 CLI results are written to CSV via ``--output-csv``.
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import UFFPSimSearchEngine
+   .. code-block:: python
 
-    search_engine = UFFPSimSearchEngine("chembl_2048b.h5", mode='memory')
+      from uffpsim import UFFPSimSearchEngine
 
-    smiles_list = [
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1",
-        "Cc1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2)cc1",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1",
-        "Cc1cc(Br)ccc1C(=O)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
-        "O=C(c1ccc(Cl)cc1Cl)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
-        "CS(=O)(=O)c1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2Cl)cc1",
-        "c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2",
-    ]
+      search_engine = UFFPSimSearchEngine("chembl_2048b.h5", mode='memory')
 
-    result_1 = search_engine.batch_search(smiles_list, 0.8, limit_by=1)
-    print(result_1)
+      smiles_list = [
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1",
+          "Cc1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2)cc1",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1",
+          "Cc1cc(Br)ccc1C(=O)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
+          "O=C(c1ccc(Cl)cc1Cl)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
+          "CS(=O)(=O)c1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2Cl)cc1",
+          "c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2",
+      ]
 
-    result_2 = search_engine.batch_search(smiles_list, 0.6, limit_by=10)
-    print(result_2)
+      result_1 = search_engine.batch_search(smiles_list, 0.8, limit_by=1)
+      print(result_1)
 
-.. code-block:: bash
+      result_2 = search_engine.batch_search(smiles_list, 0.6, limit_by=10)
+      print(result_2)
 
-    cat > queries.smi << EOF
-    Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl
-    Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1
-    Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1
-    EOF
+.. tab:: Bash
 
-    uffpsim search \
-        --db-file chembl_2048b.h5 \
-        --input-file queries.smi \
-        --threshold 0.6 \
-        --limit 10 \
-        --output-csv results.csv
+   .. code-block:: bash
+
+      cat > queries.smi << EOF
+      Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl
+      Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1
+      Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1
+      EOF
+
+      uffpsim search \
+          --db-file chembl_2048b.h5 \
+          --input-file queries.smi \
+          --threshold 0.6 \
+          --limit 10 \
+          --output-csv results.csv
 
 Batch Search Results with SMILES of Hits
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. tab:: Python
 
-    from uffpsim import UFFPSimSearchEngine
+   .. code-block:: python
 
-    search_engine = UFFPSimSearchEngine("chembl_2048b.h5", mode='memory')
+      from uffpsim import UFFPSimSearchEngine
 
-    smiles_list = [
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1",
-        "Cc1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2)cc1",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1",
-        "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1",
-        "Cc1cc(Br)ccc1C(=O)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
-        "O=C(c1ccc(Cl)cc1Cl)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
-        "CS(=O)(=O)c1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2Cl)cc1",
-        "c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2",
-    ]
+      search_engine = UFFPSimSearchEngine("chembl_2048b.h5", mode='memory')
 
-    idToSmiles = {}
-    result_1 = search_engine.batch_search(smiles_list, 0.8, limit_by=1)
-    print(result_1)
+      smiles_list = [
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1",
+          "Cc1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2)cc1",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(Cl)cc1",
+          "Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1",
+          "Cc1cc(Br)ccc1C(=O)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
+          "O=C(c1ccc(Cl)cc1Cl)c1ccc(-n2ncc(=O)[nH]c2=O)cc1Cl",
+          "CS(=O)(=O)c1ccc(C(=O)c2ccc(-n3ncc(=O)[nH]c3=O)cc2Cl)cc1",
+          "c1cc2cc(c1)-c1cccc(c1)C[n+]1ccc(c3ccccc31)NCCCCCCCCCCNc1cc[n+](c3ccccc13)C2",
+      ]
 
-    # Fetch SMILES for all hits in the results
-    for r in result_1:
-        for idn, _ in r:
-            if idn not in idToSmiles:
-                idToSmiles[idn] = search_engine.get_smiles_for_id(idn)
+      idToSmiles = {}
+      result_1 = search_engine.batch_search(smiles_list, 0.8, limit_by=1)
+      print(result_1)
 
-    result_2 = search_engine.batch_search(smiles_list, 0.6, limit_by=10)
-    print(result_2)
+      # Fetch SMILES for all hits in the results
+      for r in result_1:
+          for idn, _ in r:
+              if idn not in idToSmiles:
+                  idToSmiles[idn] = search_engine.get_smiles_for_id(idn)
 
-    # Fetch SMILES for all hits in the results
-    for r in result_2:
-        for idn, _ in r:
-            if idn not in idToSmiles:
-                idToSmiles[idn] = search_engine.get_smiles_for_id(idn)
+      result_2 = search_engine.batch_search(smiles_list, 0.6, limit_by=10)
+      print(result_2)
 
-    print(idToSmiles)
+      # Fetch SMILES for all hits in the results
+      for r in result_2:
+          for idn, _ in r:
+              if idn not in idToSmiles:
+                  idToSmiles[idn] = search_engine.get_smiles_for_id(idn)
 
-.. code-block:: bash
+      print(idToSmiles)
 
-    cat > queries.smi << EOF
-    Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl
-    Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1
-    Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1
-    EOF
+.. tab:: Bash
 
-    uffpsim search \
-        --db-file chembl_2048b.h5 \
-        --input-file queries.smi \
-        --threshold 0.6 \
-        --limit 10 \
-        --output-csv results.csv \
-        --include-hit-smiles
+   .. code-block:: bash
+
+      cat > queries.smi << EOF
+      Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccccc1Cl
+      Cc1cc(-n2ncc(=O)[nH]c2=O)ccc1C(=O)c1ccc(C#N)cc1
+      Cc1cc(-n2ncc(=O)[nH]c2=O)cc(C)c1C(O)c1ccc(Cl)cc1
+      EOF
+
+      uffpsim search \
+          --db-file chembl_2048b.h5 \
+          --input-file queries.smi \
+          --threshold 0.6 \
+          --limit 10 \
+          --output-csv results.csv \
+          --include-hit-smiles
 
 Web-App and REST API
 ----------------------
@@ -374,9 +410,11 @@ It enables users to perform similarity search and retrieve hit details including
 
 The web-app can be launched as follows:
 
-.. code-block:: bash
+.. tab:: Bash
 
-    uffpsim launch-web-app -d chembl_2048b.h5 --results full -p 5000
+   .. code-block:: bash
+
+      uffpsim launch-web-app -d chembl_2048b.h5 --results full -p 5000
 
 
 Open ``http://localhost:5000`` in your browser. Type a SMILES string, adjust the similarity slider, and click on hits to inspect structures.
@@ -395,16 +433,20 @@ Payload example is as follows:
 
 Once the app is started, it also run a REST API server. The query can be sent via ``POST`` request to the endpoint using curl as follows:
 
-.. code-block:: bash
+.. tab:: Bash
 
-    curl -X POST http://localhost:5000/api/search \
-        -H "Content-Type: application/json" \
-        -d '{"threshold":0.6,"limit_by":10,"smiles_text":"CC(=O)Oc1ccccc1C(=O)O"}'
+   .. code-block:: bash
+
+      curl -X POST http://localhost:5000/api/search \
+          -H "Content-Type: application/json" \
+          -d '{"threshold":0.6,"limit_by":10,"smiles_text":"CC(=O)Oc1ccccc1C(=O)O"}'
 
 For multiple queries, the payload can be modified as follows by adding newline tag separated SMILES strings in the ``smiles_text`` field:
 
-.. code-block:: bash
+.. tab:: Bash
 
-    curl -X POST http://localhost:5000/api/search \
-        -H "Content-Type: application/json" \
-        -d '{"threshold":0.6,"limit_by":10,"smiles_text":"CC(=O)Oc1ccccc1C(=O)O\nCC(=O)Nc1ccc(O)cc1"}'
+   .. code-block:: bash
+
+      curl -X POST http://localhost:5000/api/search \
+          -H "Content-Type: application/json" \
+          -d '{"threshold":0.6,"limit_by":10,"smiles_text":"CC(=O)Oc1ccccc1C(=O)O\nCC(=O)Nc1ccc(O)cc1"}'
