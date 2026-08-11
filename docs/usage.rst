@@ -232,6 +232,14 @@ An index table maps molecule IDs to their row positions in the database, enablin
 It is required to enable fetching of SMILES of hit compounds, and therefore recommended if databse is to be used 
 with the **web-app and REST API**. Build this table via CLI before using it from either interface:
 
+.. tab:: Python
+
+   .. code-block:: python
+
+      from uffpsim import build_mol_id_index_table
+
+      build_mol_id_index_table("chembl_2048b.h5")
+
 .. tab:: Bash
 
    .. code-block:: bash
