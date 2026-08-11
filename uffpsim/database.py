@@ -40,7 +40,7 @@ def create_database(input_file: str, db_file: str, fp_type: str, fp_params: Dict
     inner_clustering_threshold : float, optional
         The threshold for inner clustering.
     cluster_mode : str, optional
-        The mode for storing and clustering the fingerprints. Currently, accepted keywords are `memory` and `disk`.
+        The mode for storing and clustering the fingerprints. Currently, accepted keywords are `memory`, `disk` or `cuda`.
     cluster_parallel : bool, optional
         (Default: `False`). If `True`, enable clustering in parallel using OpenMP. The number of threads 
         can be controlled by setting `OMP_NUM_THRAEDS` variable.
@@ -140,7 +140,7 @@ def create_database_parallel(input_file: str, db_file: str, fp_type: str, worker
     inner_clustering_threshold : float, optional
         The threshold for inner clustering.
     cluster_mode : str, optional
-        The mode for clustering the fingerprints. Currently, accepted keywords are `memory` and `disk`.
+        The mode for clustering the fingerprints. Currently, accepted keywords are `memory`, `disk` or `cuda`.
     cluster_parallel : bool
         (Default: `False`). If `True`, enable clustering in parallel using OpenMP. The number of threads 
         can be controlled by setting `OMP_NUM_THRAEDS` variable.    
@@ -202,6 +202,45 @@ def create_database_parallel(input_file: str, db_file: str, fp_type: str, worker
 def create_database_from_files(input_files: List[str], db_file: str, fp_type: str, workers= 1, fp_params: Dict[str, Any] = None, 
                     gen_ids: bool = True, mol_id_prop=None, mol_id_max_chars: int = 15, info: dict[str, Any] | str = "",
                     inner_clustering_threshold: float = 0.2, cluster_mode: str = "memory", cluster_parallel: bool = False):
+    """Creates a new database from a list of molecular input files.
+
+    Parameters
+    ----------
+    input_files : List[str]
+        The paths to the input files containing molecular data.
+    db_file : str
+        The path to the database file where the fingerprints will be stored.
+    fp_type : str
+        The type of molecular fingerprint to be calculated.
+    workers : int, optional
+        The number of worker processes to use for parallel processing.
+    fp_params : Dict[str, Any], optional
+        Additional parameters for fingerprint calculation.
+    gen_ids : bool, optional
+        Whether to generate unique molecule IDs if not provided in the input file.
+    mol_id_prop : str, optional
+        The property name to use as molecule ID from the input file.
+    mol_id_max_chars : int, optional
+        The maximum number of characters allowed for molecule IDs.
+    info : dict[str, Any] | str, optional
+        Additional information to be stored in the database.
+    inner_clustering_threshold : float, optional
+        The threshold for inner clustering.
+    cluster_mode : str, optional
+        The mode for clustering the fingerprints. Currently, accepted keywords are `memory`, `disk` or `cuda`.
+    cluster_parallel : bool
+        (Default: `False`). If `True`, enable clustering in parallel using OpenMP. The number of threads 
+        can be controlled by setting `OMP_NUM_THRAEDS` variable.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    Exception
+        If any error occurs during the creation of the database.
+    """
     
     fp_calculator = FPCalculator(fp_type, fp_params)
     fp_params_json = json.dumps({"fp_type": fp_calculator.type, "fp_params": fp_calculator.parameters})
@@ -262,7 +301,49 @@ def create_database_from_files(input_files: List[str], db_file: str, fp_type: st
 def create_database_from_dir(input_dir: str, db_file: str, fp_type: str, suffix = "sdf.gz", workers= 1, fp_params: Dict[str, Any] = None, 
                     gen_ids: bool = True, mol_id_prop=None, mol_id_max_chars: int = 15, info: dict[str, Any] | str = "",
                     inner_clustering_threshold: float = 0.2, cluster_mode: str = "memory", cluster_parallel: bool = False):
-    
+    """Creates a new database from all supported molecular files in a directory.
+
+    Parameters
+    ----------
+    input_dir : str
+        The directory containing the molecular input files.
+    db_file : str
+        The path to the database file where the fingerprints will be stored.
+    fp_type : str
+        The type of molecular fingerprint to be calculated.
+    suffix : str, optional
+        The file suffix to match in the input directory. Supported values are `sdf`, `sdf.gz`, and `smi`.
+    workers : int, optional
+        The number of worker processes to use for parallel processing.
+    fp_params : Dict[str, Any], optional
+        Additional parameters for fingerprint calculation.
+    gen_ids : bool, optional
+        Whether to generate unique molecule IDs if not provided in the input file.
+    mol_id_prop : str, optional
+        The property name to use as molecule ID from the input file.
+    mol_id_max_chars : int, optional
+        The maximum number of characters allowed for molecule IDs.
+    info : dict[str, Any] | str, optional
+        Additional information to be stored in the database.
+    inner_clustering_threshold : float, optional
+        The threshold for inner clustering.
+    cluster_mode : str, optional
+        The mode for clustering the fingerprints. Currently, accepted keywords are `memory`, `disk` or `cuda`.
+    cluster_parallel : bool
+        (Default: `False`). If `True`, enable clustering in parallel using OpenMP. The number of threads 
+        can be controlled by setting `OMP_NUM_THRAEDS` variable.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If the provided suffix is not supported.
+    Exception
+        If any error occurs during the creation of the database.
+    """
 
     if suffix not in ["sdf", "sdf.gz", "smi"]:
         raise ValueError(f"Unsupported file suffix: {suffix}. Supported suffixes are: 'sdf', 'sdf.gz', 'smi'.")
@@ -283,7 +364,7 @@ def redo_inner_clustering(db_file: str, threshold: float, cluster_mode: str = "m
     threshold : float
         The threshold for inner clustering.
     cluster_mode : str, optional
-        The mode for clustering the fingerprints. Currently, accepted keywords are `memory` and `disk`.
+        The mode for clustering the fingerprints. Currently, accepted keywords are `memory`, `disk` or `cuda`.
     cluster_parallel : bool
         (Default: `False`). If `True`, enable clustering in parallel using OpenMP. The number of threads 
         can be controlled by setting `OMP_NUM_THRAEDS` variable.

@@ -9,6 +9,7 @@ from typing import Any
 from .database import (
     build_mol_id_index_table,
     create_database,
+    create_database_from_dir,
     create_database_parallel,
     redo_inner_clustering,
 )
@@ -35,7 +36,9 @@ def _json_dict_or_none(value: str | None) -> dict[str, Any] | None:
 
 def _add_create_database_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser("create-database", help="Create a new uffpsim HDF5 database.")
-    parser.add_argument("-i", "--input-file", required=True, help="Input molecule file path.")
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("-i", "--input-file", help="Input molecule file path.")
+    input_group.add_argument("-D", "--input-dir", dest="input_dir", help="Directory containing molecular input files.")
     parser.add_argument("-d", "--db-file", required=True, help="Output HDF5 database path.")
     parser.add_argument("-f", "--fp-type", required=True, help="Fingerprint type.")
     parser.add_argument("-p", "--fp-params", type=_json_dict_or_none, default=None, help="Fingerprint parameters as JSON object.")
@@ -45,8 +48,9 @@ def _add_create_database_parser(subparsers: argparse._SubParsersAction[argparse.
     parser.add_argument("-l", "--mol-id-max-chars", type=int, default=15, help="Maximum molecule ID length.")
     parser.add_argument("-I", "--info", default="", help="Additional database info as JSON string or plain text.")
     parser.add_argument("-t", "--inner-clustering-threshold", type=float, default=0.2, help="Inner clustering threshold.")
-    parser.add_argument("-c", "--cluster-mode", choices=["memory", "disk"], default="memory", help="Clustering mode.")
+    parser.add_argument("-c", "--cluster-mode", choices=["memory", "disk", "cuda"], default="memory", help="Clustering mode.")
     parser.add_argument("-P", "--cluster-parallel", action="store_true", help="Enable OpenMP-based clustering parallelism.")
+    parser.add_argument("-s", "--suffix", default="sdf.gz", help="File suffix to scan when using --input-dir.")
     parser.set_defaults(command=_run_create_database)
 
 
@@ -54,7 +58,7 @@ def _add_redo_clustering_parser(subparsers: argparse._SubParsersAction[argparse.
     parser = subparsers.add_parser("redo-clustering", help="Redo inner clustering for an existing database.")
     parser.add_argument("-d", "--db-file", required=True, help="HDF5 database path.")
     parser.add_argument("-t", "--threshold", required=True, type=float, help="New inner clustering threshold.")
-    parser.add_argument("-c", "--cluster-mode", choices=["memory", "disk"], default="memory", help="Clustering mode.")
+    parser.add_argument("-c", "--cluster-mode", choices=["memory", "disk", "cuda"], default="memory", help="Clustering mode.")
     parser.add_argument("-P", "--cluster-parallel", action="store_true", help="Enable OpenMP-based clustering parallelism.")
     parser.set_defaults(command=_run_redo_clustering)
 
@@ -131,6 +135,24 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _run_create_database(args: argparse.Namespace) -> int:
     info = _json_or_string(args.info)
+    if args.input_dir is not None:
+        create_database_from_dir(
+            input_dir=args.input_dir,
+            db_file=args.db_file,
+            fp_type=args.fp_type,
+            suffix=args.suffix,
+            workers=args.workers,
+            fp_params=args.fp_params,
+            gen_ids=args.gen_ids,
+            mol_id_prop=args.mol_id_prop,
+            mol_id_max_chars=args.mol_id_max_chars,
+            info=info,
+            inner_clustering_threshold=args.inner_clustering_threshold,
+            cluster_mode=args.cluster_mode,
+            cluster_parallel=args.cluster_parallel,
+        )
+        return 0
+
     common_kwargs = {
         "input_file": args.input_file,
         "db_file": args.db_file,
@@ -173,7 +195,13 @@ def _run_search_to_csv(args: argparse.Namespace) -> int:
     if args.include_hit_smiles:
         engine.build_mol_id_to_index_map()
 
-    results = engine.batch_search(smiles_queries, args.threshold, args.limit)
+    if args.mode == "memory": # Batch search is only supported in memory mode
+        results = engine.batch_search(smiles_queries, args.threshold, args.limit)
+    else:
+        results = []
+        for smiles in smiles_queries:
+            hits = engine.search(smiles, args.threshold, args.limit)
+            results.append(hits)
 
     output_path = Path(args.output_csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)

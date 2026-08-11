@@ -1,11 +1,12 @@
 create-database
 ===============
 
-Create a new uffpsim HDF5 database from a molecular input file.
+Create a new uffpsim HDF5 database from a molecular input file or from all matching files in a directory.
 
 .. code-block:: bash
 
     uffpsim create-database -i <input_file> -d <db_file> -f <fp_type> [options]
+    uffpsim create-database -D <input_dir> -d <db_file> -f <fp_type> [options]
 
 Options
 -------
@@ -14,7 +15,11 @@ Options
 
 .. option:: -i, --input-file <path>
 
-    (Required) Input molecule file path. Supported formats: SDF, SDF.GZ, SMILES (SMI), InChI.
+    Input molecule file path. Supported formats: SDF, SDF.GZ, SMILES (SMI), InChI.
+
+.. option:: -D, --input-dir <path>
+
+    Input directory containing molecular files. When provided, all matching files in the directory are processed. Requires ``-s/--suffix`` to choose the file type.
 
 .. option:: -d, --db-file <path>
 
@@ -52,13 +57,17 @@ Options
 
     Threshold for inner clustering. Molecules above this Tanimoto similarity are grouped in pop-count bins. Default: 0.2.
 
-.. option:: -c, --cluster-mode {memory,disk}
+.. option:: -c, --cluster-mode {memory,disk,cuda}
 
-    Clustering mode. ``memory`` stores clustering data in RAM only; ``disk`` writes it to the database file. Default: memory.
+    Clustering mode. ``memory`` stores clustering data in RAM only; ``disk`` writes it to the database file; ``cuda`` uses GPU acceleration. Default: memory.
 
 .. option:: -P, --cluster-parallel
 
     Enable OpenMP-based clustering parallelism. Controls thread count via ``OMP_NUM_THREADS``.
+
+.. option:: -s, --suffix <suffix>
+
+    File suffix to scan when using ``--input-dir``. Supported values: ``sdf``, ``sdf.gz``, ``smi``. Default: ``sdf.gz``.
 
 Example
 -------
@@ -87,3 +96,14 @@ Create a database using parallel fingerprint processing with 4 workers:
         --fp-params '{"fpSize": 2048, "radius": 2}' \
         -w 4 \
         --cluster-parallel
+
+Create a database from all SMILES files in a directory:
+
+.. code-block:: bash
+
+    uffpsim create-database \
+        -D /path/to/molecules \
+        -d chembl.h5 \
+        -f Morgan \
+        --suffix smi \
+        --gen-ids

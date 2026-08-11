@@ -8,7 +8,7 @@ uffpsim documentation
 
    introduction
    installation
-   examples
+   usage
    demo_webapp
    cli/index
    api/index

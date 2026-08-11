@@ -18,9 +18,9 @@ Options
 
     (Required) New inner clustering threshold. Molecules above this Tanimoto similarity will be grouped together.
 
-.. option:: -c, --cluster-mode {memory,disk}
+.. option:: -c, --cluster-mode {memory,disk,cuda}
 
-    Clustering mode. ``memory`` stores clustering data in RAM only; ``disk`` writes it to the database file. Default: memory.
+    Clustering mode. ``memory`` stores clustering data in RAM only; ``disk`` writes it to the database file; ``cuda`` uses GPU acceleration. Default: memory.
 
 .. option:: -P, --cluster-parallel
 
