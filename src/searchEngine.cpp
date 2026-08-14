@@ -189,6 +189,9 @@ void FPSearchEngine::_normal_search_disk(const std::vector<utils::dt_inner_clust
     for (int tenth = 9; tenth >= min_tenth; --tenth) {
         threshold_vec.push_back(static_cast<float>(tenth) * kStep);
     }
+    if (threshold_vec.back() > threshold) {
+        threshold_vec.push_back(threshold);
+    }
 
     std::vector<std::vector<uint8_t>> clusters_done;
     clusters_done.reserve(popCountBinsWithMaxScore.size());
@@ -239,6 +242,7 @@ void FPSearchEngine::_normal_search_disk(const std::vector<utils::dt_inner_clust
                         }
                     }
                     free(fp_ptr - (inner_end - inner_start)); // free memory allocated for fps read from disk
+                    clusters_done[i][cid] = 1;
                 }
                 inner_start = clusterFp_ptr[0];
             }
