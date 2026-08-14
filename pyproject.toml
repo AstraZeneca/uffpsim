@@ -6,7 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "uffpsim"
 version = "0.1.0"
 authors = [
-    { name = "Rajendra Kumar" }
+    { name = "Rajendra Kumar" },
+    { name = "Gian Marco Ghiandoni" }
 ]
 maintainers = [
     {name = "Rajendra Kumar"}
@@ -29,6 +30,7 @@ dependencies = [
     "Flask>=3.0,<4",
 ]
 
+[project.optional-dependencies]
 docs = [
     "sphinx>=7.0,<8",
     "sphinx_rtd_theme>=2.0.0",
