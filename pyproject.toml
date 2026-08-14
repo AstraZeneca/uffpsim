@@ -26,12 +26,9 @@ dependencies = [
     "rdkit>=2024.3.2",
     "numpy>=1.26.4",
     "scipy>=1.13",
-]
-
-[project.optional-dependencies]
-web = [
     "Flask>=3.0,<4",
 ]
+
 docs = [
     "sphinx>=7.0,<8",
     "sphinx_rtd_theme>=2.0.0",
@@ -40,3 +37,10 @@ docs = [
 
 [project.scripts]
 uffpsim = "uffpsim.cli:main"
+
+[tool.setuptools.package-data]
+"uffpsim.web_app" = [
+    "templates/*.html",
+    "static/**/*.css",
+    "static/**/*.js",
+]

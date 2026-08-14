@@ -1,0 +1,5 @@
+include README.md
+include LICENSE.md
+
+recursive-include uffpsim/web_app/templates *.html
+recursive-include uffpsim/web_app/static *.css *.js
