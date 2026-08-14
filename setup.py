@@ -121,6 +121,9 @@ class BuildExt(build_ext):
     l_opts = {"msvc": [], "unix": ["-fopenmp"]}
 
     if sys.platform == "darwin":
+        # Apple clang does not support -fopenmp out of the box.
+        c_opts["unix"] = [opt for opt in c_opts["unix"] if opt not in ("-fopenmp", "-funroll-all-loops")]
+        l_opts["unix"] = [opt for opt in l_opts["unix"] if opt != "-fopenmp"]
         darwin_opts = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
         c_opts["unix"] += darwin_opts
         l_opts["unix"] += darwin_opts
@@ -138,17 +141,32 @@ class BuildExt(build_ext):
             
         if not pkgconfig:
             raise LookupError("pkgconfig not found! cannot search for HDF5 dev library. Install pkgconfig and try again.")
-        
-        if not pkgconfig.exists("hdf5"):
-            raise LookupError("HDF5 dev library not found")
 
-        cflags = pkgconfig.cflags("hdf5")
-        ldflags = pkgconfig.libs("hdf5")
+        hdf5_pkg_names = ["hdf5", "hdf5-serial", "hdf5-openmpi", "hdf5-mpi"]
+        selected_hdf5_pkg = None
+        for hdf5_pkg in hdf5_pkg_names:
+            if pkgconfig.exists(hdf5_pkg):
+                selected_hdf5_pkg = hdf5_pkg
+                break
 
-        if not cflags or not ldflags:
-            raise LookupError("Could not find HDF5 dev library through pkgconfig!")
+        if selected_hdf5_pkg:
+            cflags = pkgconfig.cflags(selected_hdf5_pkg)
+            ldflags = pkgconfig.libs(selected_hdf5_pkg)
+            if not cflags or not ldflags:
+                raise LookupError("Could not find HDF5 dev library through pkgconfig!")
+            return cflags.split(), ldflags.split() + ['-lhdf5_cpp', '-lhdf5_hl']
 
-        return cflags.split(), ldflags.split() + ['-lhdf5_cpp', '-lhdf5_hl']
+        # Fallback for distros that install HDF5 headers/libs without a usable hdf5 pkg-config name.
+        fallback_candidates = [
+            ("/usr/include/hdf5/serial", "/usr/lib/x86_64-linux-gnu/hdf5/serial"),
+            ("/usr/include", "/usr/lib64"),
+            ("/usr/include", "/usr/lib"),
+        ]
+        for include_dir, lib_dir in fallback_candidates:
+            if os.path.exists(os.path.join(include_dir, "H5Cpp.h")) and os.path.exists(os.path.join(lib_dir, "libhdf5_cpp.so")):
+                return ["-I" + include_dir], ["-L" + lib_dir, "-lhdf5", "-lhdf5_cpp", "-lhdf5_hl"]
+
+        raise LookupError("HDF5 dev library not found")
 
     def build_extensions(self):
         cuda_config = find_cuda_config()

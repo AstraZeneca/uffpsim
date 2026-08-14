@@ -33,7 +33,16 @@ jobs:
           CIBW_SKIP: "*-musllinux_*"
           CIBW_ARCHS_LINUX: "x86_64"
           CIBW_ARCHS_MACOS: "x86_64"
-          CIBW_BEFORE_ALL_LINUX: "yum install -y hdf5-devel openssl-devel pkgconfig"
+          CIBW_BEFORE_ALL_LINUX: >-
+            /bin/bash -c "
+            if command -v dnf >/dev/null 2>&1; then
+              dnf install -y hdf5-devel openssl-devel pkgconfig pkgconf-pkg-config || dnf install -y hdf5-devel openssl-devel pkgconfig;
+            elif command -v yum >/dev/null 2>&1; then
+              yum install -y hdf5-devel openssl-devel pkgconfig;
+            else
+              echo 'No supported package manager found for Linux wheel image' >&2;
+              exit 1;
+            fi"
           CIBW_BEFORE_ALL_MACOS: "brew install hdf5 pkg-config"
 
       - name: Upload wheel artifacts
