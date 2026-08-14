@@ -55,6 +55,10 @@ class FPSearchEngine {
         void _normal_search_memory(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
                             float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
 
+        // Decreasing-threshold / top-k schedule, same as _normal_search_disk, over in-memory fingerprints.
+        void _normal_search_memory_stepped(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp,
+                            float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
+
         void _normal_search_disk(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
                     float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
 
