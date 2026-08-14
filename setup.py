@@ -132,7 +132,7 @@ class BuildExt(build_ext):
             # Apple clang does not support -fopenmp out of the box.
             c_opts["unix"] = [opt for opt in c_opts["unix"] if opt != "-fopenmp"]
             l_opts["unix"] = [opt for opt in l_opts["unix"] if opt != "-fopenmp"]
-        darwin_opts = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
+        darwin_opts = ["-stdlib=libc++", "-mmacosx-version-min=10.15"]
         c_opts["unix"] += darwin_opts
         l_opts["unix"] += darwin_opts
 
