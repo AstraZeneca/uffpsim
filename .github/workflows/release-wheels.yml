@@ -42,11 +42,21 @@ jobs:
             "
           CIBW_BEFORE_ALL_MACOS: >-
             /bin/bash -c "
+            set -euo pipefail;
             brew install hdf5 pkg-config libomp;
-            HDF5_PREFIX=$(brew --prefix hdf5);
-            LIBOMP_PREFIX=$(brew --prefix libomp);
-            if [[ -z \"$HDF5_PREFIX\" || -z \"$LIBOMP_PREFIX\" ]]; then
-              echo 'Could not resolve Homebrew prefixes for hdf5/libomp' >&2;
+            BREW_PREFIX=$(brew --prefix);
+            HDF5_PREFIX=\"$BREW_PREFIX/opt/hdf5\";
+            LIBOMP_PREFIX=\"$BREW_PREFIX/opt/libomp\";
+            if [[ ! -d \"$HDF5_PREFIX/include\" || ! -d \"$HDF5_PREFIX/lib\" ]]; then
+              HDF5_PREFIX=$(brew --prefix hdf5);
+            fi;
+            if [[ ! -d \"$LIBOMP_PREFIX/include\" || ! -d \"$LIBOMP_PREFIX/lib\" ]]; then
+              LIBOMP_PREFIX=$(brew --prefix libomp);
+            fi;
+            if [[ ! -d \"$HDF5_PREFIX/include\" || ! -d \"$HDF5_PREFIX/lib\" || ! -d \"$LIBOMP_PREFIX/include\" || ! -d \"$LIBOMP_PREFIX/lib\" ]]; then
+              echo 'Could not resolve Homebrew include/lib directories for hdf5/libomp' >&2;
+              echo \"HDF5_PREFIX=$HDF5_PREFIX\" >&2;
+              echo \"LIBOMP_PREFIX=$LIBOMP_PREFIX\" >&2;
               exit 1;
             fi;
             ln -sfn \"$HDF5_PREFIX/include\" /tmp/cibw-hdf5-include;
