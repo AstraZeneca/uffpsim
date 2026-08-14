@@ -121,9 +121,17 @@ class BuildExt(build_ext):
     l_opts = {"msvc": [], "unix": ["-fopenmp"]}
 
     if sys.platform == "darwin":
-        # Apple clang does not support -fopenmp out of the box.
-        c_opts["unix"] = [opt for opt in c_opts["unix"] if opt not in ("-fopenmp", "-funroll-all-loops")]
-        l_opts["unix"] = [opt for opt in l_opts["unix"] if opt != "-fopenmp"]
+        use_macos_openmp = os.environ.get("UFFPSIM_MACOS_OPENMP", "0") == "1"
+        c_opts["unix"] = [opt for opt in c_opts["unix"] if opt != "-funroll-all-loops"]
+        if use_macos_openmp:
+            c_opts["unix"] = [opt for opt in c_opts["unix"] if opt != "-fopenmp"]
+            l_opts["unix"] = [opt for opt in l_opts["unix"] if opt != "-fopenmp"]
+            c_opts["unix"] += ["-Xpreprocessor", "-fopenmp"]
+            l_opts["unix"] += ["-lomp"]
+        else:
+            # Apple clang does not support -fopenmp out of the box.
+            c_opts["unix"] = [opt for opt in c_opts["unix"] if opt != "-fopenmp"]
+            l_opts["unix"] = [opt for opt in l_opts["unix"] if opt != "-fopenmp"]
         darwin_opts = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
         c_opts["unix"] += darwin_opts
         l_opts["unix"] += darwin_opts

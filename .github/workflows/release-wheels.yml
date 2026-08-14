@@ -42,16 +42,23 @@ jobs:
             "
           CIBW_BEFORE_ALL_MACOS: >-
             /bin/bash -c "
-            brew install hdf5 pkg-config gcc;
-            GXX_BIN=$(ls -1 /opt/homebrew/bin/g++-[0-9]* /usr/local/bin/g++-[0-9]* 2>/dev/null | sort -V | tail -n1);
-            GCC_BIN=$(echo \"$GXX_BIN\" | sed 's/g++-/gcc-;')
-            if [[ -z \"$GXX_BIN\" || ! -x \"$GXX_BIN\" || ! -x \"$GCC_BIN\" ]]; then
-              echo 'Could not find Homebrew gcc/g++ versioned binaries' >&2;
+            brew install hdf5 pkg-config libomp;
+            HDF5_PREFIX=$(brew --prefix hdf5);
+            LIBOMP_PREFIX=$(brew --prefix libomp);
+            if [[ -z \"$HDF5_PREFIX\" || -z \"$LIBOMP_PREFIX\" ]]; then
+              echo 'Could not resolve Homebrew prefixes for hdf5/libomp' >&2;
               exit 1;
             fi;
-            ln -sf \"$GCC_BIN\" /tmp/cibw-gcc;
-            ln -sf \"$GXX_BIN\" /tmp/cibw-gxx"
-          CIBW_ENVIRONMENT_MACOS: "CC=/tmp/cibw-gcc CXX=/tmp/cibw-gxx"
+            ln -sfn \"$HDF5_PREFIX/include\" /tmp/cibw-hdf5-include;
+            ln -sfn \"$HDF5_PREFIX/lib\" /tmp/cibw-hdf5-lib;
+            ln -sfn \"$LIBOMP_PREFIX/include\" /tmp/cibw-omp-include;
+            ln -sfn \"$LIBOMP_PREFIX/lib\" /tmp/cibw-omp-lib"
+          CIBW_ENVIRONMENT_MACOS: >-
+            CC=clang CXX=clang++ UFFPSIM_MACOS_OPENMP=1
+            CPPFLAGS="-I/tmp/cibw-hdf5-include -I/tmp/cibw-omp-include"
+            CFLAGS="-Xpreprocessor -fopenmp"
+            CXXFLAGS="-Xpreprocessor -fopenmp"
+            LDFLAGS="-L/tmp/cibw-hdf5-lib -L/tmp/cibw-omp-lib -lomp"
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
