@@ -227,6 +227,7 @@ void FPSearchEngine::_normal_search_memory_stepped(const std::vector<utils::dt_i
                         if (coeff >= threshold) {
                             results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
                         }
+                        *num_sim_ops += 1;
                     }
                     clusters_done.view[i][cid] = 1;
                 }
