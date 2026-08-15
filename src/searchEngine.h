@@ -62,14 +62,14 @@ class FPSearchEngine {
          * Note: The _normal_search method assumes that the inner_clusters_fingerprints_maxscore vector is sorted by the maximum score in descending order.
          */
         void _normal_search_memory(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
-                            float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
+                            float threshold, int limits, std::vector<std::tuple<std::string, float>> &results, uint64_t *num_sim_ops);
 
         // Decreasing-threshold / top-k schedule, same as _normal_search_disk, over in-memory fingerprints.
         void _normal_search_memory_stepped(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp,
-                            float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
+                            float threshold, int limits, std::vector<std::tuple<std::string, float>> &results, uint64_t *num_sim_ops);
 
         void _normal_search_disk(const std::vector<utils::dt_inner_clusters_fingerprints_maxscore>& inner_clusters_fingerprints_maxscore, uint64_t *queryCFp, 
-                    float threshold, int limits, std::vector<std::tuple<std::string, float>> &results);
+                    float threshold, int limits, std::vector<std::tuple<std::string, float>> &results, uint64_t *num_sim_ops);
 
         /**
          * The prepareQuery method prepares the query fingerprint for searching.
