@@ -37,7 +37,8 @@ class FPSearchEngine {
             uint64_t *,
             float,
             int,
-            std::vector<std::tuple<std::string, float>>&);
+            std::vector<std::tuple<std::string, float>>&,
+            uint64_t *);
 
         NormalSearchFn _normal_search = nullptr;
 
@@ -161,7 +162,7 @@ class FPSearchEngine {
          * @return: A vector of tuples, where each tuple contains the molecule ID and similarity score.
          *
          */
-        std::vector<std::tuple<std::string, float>> search(const std::string &fp_string, float threshold, int limits);
+         std::tuple<std::vector<std::tuple<std::string, float>>, uint64_t> search(const std::string &fp_string, float threshold, int limits);
         
         /**
          * The batchSearch method performs a batch molecular similarity search using the Tanimoto coefficient.
