@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <cmath>
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 #include <pybind11/pybind11.h>
@@ -81,7 +82,12 @@ std::vector<utils::dt_inner_clusters_fingerprints_maxscore> FPSearchEngine::filt
     }
 
     // Sort by score
-    std::sort(filteredPopCountBinsWithMaxScore.begin(), filteredPopCountBinsWithMaxScore.end(), [](const utils::dt_inner_clusters_fingerprints_maxscore &a, const utils::dt_inner_clusters_fingerprints_maxscore &b) {
+    std::sort(filteredPopCountBinsWithMaxScore.begin(), filteredPopCountBinsWithMaxScore.end(), [queryPopcount](const utils::dt_inner_clusters_fingerprints_maxscore &a, const utils::dt_inner_clusters_fingerprints_maxscore &b) {
+        if (a.score == b.score) {
+            int da = std::abs(a.inner_clusters_fingerprints.popCount - (int) queryPopcount);
+            int db = std::abs(b.inner_clusters_fingerprints.popCount - (int) queryPopcount);
+            return da < db;
+        }
         return a.score > b.score;
     });
     return filteredPopCountBinsWithMaxScore;
