@@ -452,6 +452,7 @@ void FPSearchEngine::_batch_search_memory(utils::dt_batch_data &batch_data, floa
     uint64_t max_common_popcnt = 0;
     uint64_t common_popcnt = 0;
     bool all_done = false;
+    int queries_left = 0;
     utils::dt_batch_query_data *query_data = batch_data.qdata;
     
     for( auto &inner_clusters_fingerprints_maxScore : batch_data.filteredPopCountBinsWithMaxScore) {
@@ -459,15 +460,11 @@ void FPSearchEngine::_batch_search_memory(utils::dt_batch_data &batch_data, floa
 
         // check if all queries are done within requested limits
         all_done = true;
+        queries_left = 0;
         query_data = batch_data.qdata;
         for(auto q=0; q < batch_data.qsize; q++, query_data++) {
-            if (!query_data->done && query_data->max_coeff >= maxScore) {
-                int hits = 0;
-                for(auto r=0; r < query_data->results_size; r++) {
-                    if (query_data->results[r].score >= maxScore) hits++;
-                }
-                if (hits >= limits) query_data->done = true;
-            }
+            maybe_mark_batch_query_done(query_data, maxScore, limits);
+            if (!query_data->done) queries_left++;
             all_done &= query_data->done;
         }
         if (all_done) break;
@@ -478,7 +475,7 @@ void FPSearchEngine::_batch_search_memory(utils::dt_batch_data &batch_data, floa
         uint64_t *clusterFp_ptr = inner_clusters_fingerprints.clusterFp;
         uint64_t *fp_ptr = inner_clusters_fingerprints.fp;
         uint64_t inner_start = 0;
-        for(size_t cid=0; cid < inner_clusters_fingerprints.num_clusters; cid++, clusterFp_ptr += _CFPSize) { //searching through clusters
+        for(size_t cid=0; cid < inner_clusters_fingerprints.num_clusters && !all_done; cid++, clusterFp_ptr += _CFPSize) { //searching through clusters
 
             // check if any query need to be search in current cluster
             max_common_popcnt = 0;
@@ -486,9 +483,6 @@ void FPSearchEngine::_batch_search_memory(utils::dt_batch_data &batch_data, floa
             for(auto q=0; q < batch_data.qsize; q++, query_data++) {
                 if (!query_data->done) {
                     common_popcnt = bitwise_and_popcount(clusterFp_ptr + _molIdOffset, query_data->cfp + _molIdOffset, _fpSize);
-                    //for (auto j = _molIdOffset; j < _fpEndIndex; j++) {
-                    //    common_popcnt += popcntll(clusterFp_ptr[j] & query_data->cfp[j]);
-                    //}
                     if (common_popcnt > max_common_popcnt) max_common_popcnt = common_popcnt;
                 }
             }
@@ -496,15 +490,12 @@ void FPSearchEngine::_batch_search_memory(utils::dt_batch_data &batch_data, floa
             // queries are searched in current cluster
             if (max_common_popcnt >= commonPopCountThreshold) { // potentially hit could be found in current cluster for at least one query
                 uint64_t inner_end = clusterFp_ptr[0];
-                for (auto i = inner_start; i < inner_end; i+=_CFPSize, fp_ptr += _CFPSize) {
+                for (auto i = inner_start; i < inner_end && !all_done; i+=_CFPSize, fp_ptr += _CFPSize) {
 
                     query_data = batch_data.qdata;
                     for(auto q=0; q < batch_data.qsize; q++, query_data++) { // similarity of each query with each fingerprint of current cluster
                         if (!query_data->done) {
                             common_popcnt = bitwise_and_popcount(fp_ptr + _molIdOffset, query_data->cfp + _molIdOffset, _fpSize);
-                            //for (auto j = _molIdOffset; j < _fpEndIndex; j++) {
-                            //    common_popcnt += popcntll(fp_ptr[j] & query_data->cfp[j]);
-                            //}
 
                             if (common_popcnt >= commonPopCountThreshold) { // potential hit found
                                 coeff =  TanimotoCoeff(common_popcnt, query_data->cfp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
@@ -517,6 +508,10 @@ void FPSearchEngine::_batch_search_memory(utils::dt_batch_data &batch_data, floa
                                     query_data->results = results;
                                     query_data->results_size += 1;
                                     if (coeff > query_data->max_coeff) query_data->max_coeff = coeff;
+                                    if (query_data->max_coeff >= maxScore && query_data->results_size >= limits) {
+                                        maybe_mark_batch_query_done(query_data, maxScore, limits);
+                                        if (query_data->done) all_done = (--queries_left == 0);
+                                    }
                                 }
                             }
                         }
@@ -537,6 +532,7 @@ void FPSearchEngine::_batch_search_disk(utils::dt_batch_data &batch_data, float 
     uint64_t max_common_popcnt = 0;
     uint64_t common_popcnt = 0;
     bool all_done = false;
+    int queries_left = 0;
     utils::dt_batch_query_data *query_data = batch_data.qdata;
     
     for( auto &inner_clusters_fingerprints_maxScore : batch_data.filteredPopCountBinsWithMaxScore) {
@@ -544,15 +540,11 @@ void FPSearchEngine::_batch_search_disk(utils::dt_batch_data &batch_data, float 
 
         // check if all queries are done within requested limits
         all_done = true;
+        queries_left = 0;
         query_data = batch_data.qdata;
         for(auto q=0; q < batch_data.qsize; q++, query_data++) {
-            if (!query_data->done && query_data->max_coeff >= maxScore) {
-                int hits = 0;
-                for(auto r=0; r < query_data->results_size; r++) {
-                    if (query_data->results[r].score >= maxScore) hits++;
-                }
-                if (hits >= limits) query_data->done = true;
-            }
+            maybe_mark_batch_query_done(query_data, maxScore, limits);
+            if (!query_data->done) queries_left++;
             all_done &= query_data->done;
         }
         if (all_done) break;
@@ -562,7 +554,7 @@ void FPSearchEngine::_batch_search_disk(utils::dt_batch_data &batch_data, float 
 
         uint64_t *clusterFp_ptr = inner_clusters_fingerprints.clusterFp;
         uint64_t inner_start = 0;
-        for(size_t cid=0; cid < inner_clusters_fingerprints.num_clusters; cid++, clusterFp_ptr += _CFPSize) { //searching through clusters
+        for(size_t cid=0; cid < inner_clusters_fingerprints.num_clusters && !all_done; cid++, clusterFp_ptr += _CFPSize) { //searching through clusters
 
             // check if any query need to be search in current cluster
             max_common_popcnt = 0;
@@ -570,9 +562,6 @@ void FPSearchEngine::_batch_search_disk(utils::dt_batch_data &batch_data, float 
             for(auto q=0; q < batch_data.qsize; q++, query_data++) {
                 if (!query_data->done) {
                     common_popcnt = bitwise_and_popcount(clusterFp_ptr + _molIdOffset, query_data->cfp + _molIdOffset, _fpSize);
-                    //for (auto j = _molIdOffset; j < _fpEndIndex; j++) {
-                    //    common_popcnt += popcntll(clusterFp_ptr[j] & query_data->cfp[j]);
-                    //}
                     if (common_popcnt > max_common_popcnt) max_common_popcnt = common_popcnt;
                 }
             }
@@ -581,15 +570,13 @@ void FPSearchEngine::_batch_search_disk(utils::dt_batch_data &batch_data, float 
             if (max_common_popcnt >= commonPopCountThreshold) { // potentially hit could be found in current cluster for at least one query
                 uint64_t inner_end = clusterFp_ptr[0];
                 uint64_t *fp_ptr = _fpStore->getFPsForCluster(inner_clusters_fingerprints.popCount, inner_start, inner_end); // read fps for this cluster from disk
-                for (auto i = inner_start; i < inner_end; i+=_CFPSize, fp_ptr += _CFPSize) {
+                uint64_t *fp_base = fp_ptr;
+                for (auto i = inner_start; i < inner_end && !all_done; i+=_CFPSize, fp_ptr += _CFPSize) {
 
                     query_data = batch_data.qdata;
                     for(auto q=0; q < batch_data.qsize; q++, query_data++) { // similarity of each query with each fingerprint of current cluster
                         if (!query_data->done) {
                             common_popcnt = bitwise_and_popcount(fp_ptr + _molIdOffset, query_data->cfp + _molIdOffset, _fpSize);
-                            //for (auto j = _molIdOffset; j < _fpEndIndex; j++) {
-                            //    common_popcnt += popcntll(fp_ptr[j] & query_data->cfp[j]);
-                            //}
 
                             if (common_popcnt >= commonPopCountThreshold) { // potential hit found
                                 coeff =  TanimotoCoeff(common_popcnt, query_data->cfp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
@@ -602,12 +589,16 @@ void FPSearchEngine::_batch_search_disk(utils::dt_batch_data &batch_data, float 
                                     query_data->results = results;
                                     query_data->results_size += 1;
                                     if (coeff > query_data->max_coeff) query_data->max_coeff = coeff;
+                                    if (query_data->max_coeff >= maxScore && query_data->results_size >= limits) {
+                                        maybe_mark_batch_query_done(query_data, maxScore, limits);
+                                        if (query_data->done) all_done = (--queries_left == 0);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                free(fp_ptr - (inner_end - inner_start)); // free memory allocated for fps read from disk
+                free(fp_base);
             }
             inner_start = clusterFp_ptr[0];
         }

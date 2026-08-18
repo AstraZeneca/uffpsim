@@ -20,6 +20,15 @@ struct FileNotFoundException : public std::runtime_error {
 
 #define TanimotoCoeff(common, query, target, lookup_table) common*lookup_table[query+target-common]
 
+inline void maybe_mark_batch_query_done(utils::dt_batch_query_data *query, float maxScore, int limits) {
+    if (query->done || query->max_coeff < maxScore || query->results_size < limits) return;
+    int hits = 0;
+    for (int r = 0; r < query->results_size; ++r) {
+        if (query->results[r].score >= maxScore) hits++;
+    }
+    if (hits >= limits) query->done = true;
+}
+
 class FPSearchEngine {
     private:
 
