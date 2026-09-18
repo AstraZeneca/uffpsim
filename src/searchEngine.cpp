@@ -229,7 +229,7 @@ void FPSearchEngine::_normal_search_memory_stepped(const std::vector<utils::dt_i
             const uint64_t userCommonPopCountThreshold = (uint64_t) ceil(threshold * popCountBinsWithMaxScore[i].maxPopCountWithQuery);
 
             uint64_t *clusterFp_ptr = inner_clusters_fingerprints.clusterFp;
-            uint64_t *fp_ptr = inner_clusters_fingerprints.fp;
+            
             uint64_t inner_start = 0;
             std::vector<uint64_t>& bin_common_popcnt_cache = common_popcnt_clusters_cache[i];
             for (size_t cid = 0; cid < inner_clusters_fingerprints.num_clusters; cid++, clusterFp_ptr += _CFPSize) {
@@ -240,20 +240,17 @@ void FPSearchEngine::_normal_search_memory_stepped(const std::vector<utils::dt_i
                     bin_common_popcnt_cache[cid] = common_popcnt;
                 }
 
+                uint64_t *fp_ptr = &inner_clusters_fingerprints.fp[inner_start];
                 const uint64_t inner_end = clusterFp_ptr[0];
                 if (common_popcnt >= commonPopCountThreshold && !clusters_done[i][cid]) {
                     for (auto fp_idx = inner_start; fp_idx < inner_end; fp_idx += _CFPSize, fp_ptr += _CFPSize) {
                         common_popcnt = bitwise_and_popcount(fp_ptr+_molIdOffset, queryCFp+_molIdOffset, _fpSize);
-                        if (common_popcnt >= userCommonPopCountThreshold) {
-                            coeff = TanimotoCoeff(common_popcnt, queryCFp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
-                            if (coeff >= threshold) {
-                                results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
-                            }
+                        coeff = TanimotoCoeff(common_popcnt, queryCFp[_CFPPopCountIndex], fp_ptr[_CFPPopCountIndex], _div_lookup_table);
+                        if (coeff >= threshold) {
+                            results.push_back(std::make_tuple(utils::getMolIdFromCompactFPArray(fp_ptr, _molIdMaxLength), coeff));
                         }
                     }
                     clusters_done[i][cid] = 1;
-                } else {
-                    fp_ptr += inner_end - inner_start;
                 }
                 inner_start = inner_end;
             }
