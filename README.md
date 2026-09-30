@@ -1,9 +1,18 @@
 # Ultrafast Fingerprint Similarity (`UFFPSim`)
 
+[![PyPI](https://img.shields.io/pypi/v/uffpsim)](https://pypi.org/project/uffpsim/#files)
+[![Documentation Status](https://readthedocs.org/projects/uffpsim/badge/?version=latest)](https://uffpsim.readthedocs.io/en/latest/index.html)
+
 **UFFPSim** is a high-performance library for exact chemical fingerprint similarity search over large molecular databases. It extends the BitBound algorithm with a second pruning stage based on clustered fingerprints within each popcount bin, reducing the number of exact Tanimoto comparisons required. The library supports both in-memory search for high-throughput screening and disk-based search for databases that exceed available RAM, enabling exact queries on databases with up to a billion compounds.
 
+Full documentation is available at [uffpsim.readthedocs.io](https://uffpsim.readthedocs.io/en/latest/index.html).
+
 # Installation
-The simplest way to install is:
+`uffpsim` can be installed directly from [PyPI](https://pypi.org/project/uffpsim/#files):
+
+    pip install uffpsim
+
+Alternatively, to build from source, the simplest way to install is:
 
     UFFPSIM_NATIVE=1 pip install -v .
 
