@@ -42,7 +42,7 @@ class UFFPSimSearchEngine(uffpsimLib.FPSearchEngineBase):
         db_file : str
             The file path of the database containing the molecular fingerprints and their corresponding identifiers.
         mode : str, optional
-            The mode of operation for the search engine. Can be "memory" or "disk". Default is "memory".
+            The mode of operation for the search engine. Can be "memory", "memory-stepped" or "disk". Default is "memory".
 
         """
         super().__init__(db_file, mode)

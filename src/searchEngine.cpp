@@ -38,7 +38,11 @@ FPSearchEngine::FPSearchEngine(const std::string& filename, std::string mode) {
         _fpStore->loadDataInMemory(true); // load only cluster fps in memory for disk-based search
         _fpStore->initH5GroupsMappingForPopCountBins(); // initialize the mapping of popcount to corresponding h5 groups for popcount bins and clusters for disk-based search
     } else {
-        _normal_search = &FPSearchEngine::_normal_search_memory_stepped;
+        if (mode == "memory-stepped") {
+            _normal_search = &FPSearchEngine::_normal_search_memory_stepped;
+        } else {
+            _normal_search = &FPSearchEngine::_normal_search_memory;
+        }
         _batch_search = &FPSearchEngine::_batch_search_memory;
         _fpStore->loadDataInMemory(); // load all fps in memory for memory-based search
     }

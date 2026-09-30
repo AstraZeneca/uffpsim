@@ -15,7 +15,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14, macos-15]
+        include:
+          - os: macos-14
+            deployment_target: "14.0"
+          - os: macos-15
+            deployment_target: "15.0"
+          - os: ubuntu-latest
+            deployment_target: "" # Leave empty for Linux
+
 
     steps:
       - name: Checkout source
@@ -33,7 +40,6 @@ jobs:
           CIBW_SKIP: "*-musllinux_*"
           CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
           CIBW_ARCHS_LINUX: "x86_64"
-          CIBW_ARCHS_MACOS: "x86_64"
           CIBW_BEFORE_ALL_LINUX: >-
             /bin/bash -c "
             dnf install -y openssl-devel pkgconfig;
@@ -45,7 +51,10 @@ jobs:
             brew install hdf5 pkg-config libomp;
             test -d /opt/homebrew/opt/libomp/include -o -d /usr/local/opt/libomp/include"
           CIBW_ENVIRONMENT_MACOS: >-
-            CC=clang CXX=clang++ UFFPSIM_MACOS_OPENMP=1 MACOSX_DEPLOYMENT_TARGET=10.15
+            CC=clang
+            CXX=clang++
+            UFFPSIM_MACOS_OPENMP=1
+            MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment_target }}
             CPPFLAGS="-I/opt/homebrew/opt/hdf5/include -I/usr/local/opt/hdf5/include -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
             CFLAGS="-Xpreprocessor -fopenmp"
             CXXFLAGS="-Xpreprocessor -fopenmp"
@@ -54,7 +63,7 @@ jobs:
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: python-package-distributions
+          name: python-package-distributions-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
 
   upload_release_assets:
@@ -67,11 +76,36 @@ jobs:
       - name: Download wheel artifacts
         uses: actions/download-artifact@v4
         with:
-          path: wheels
-          pattern: wheels-*
-          merge-multiple: false
+          pattern: python-package-distributions-*
+          merge-multiple: true
 
       - name: Upload wheels to GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           files: wheels/**/*.whl
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build_wheels # Ensures publishing only happens if the build succeeds
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi # Matches the environment configured in PyPI
+      url: https://pypi.org # Optional: adds a direct link to your job output
+    
+    permissions:
+      id-token: write # MANDATORY for PyPI Trusted Publishing
+
+    steps:
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: python-package-distributions-*
+          path: dist/
+          merge-multiple: true
+      
+      - name: List files
+        run: ls -R dist/
+
+      - name: Publish Package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
