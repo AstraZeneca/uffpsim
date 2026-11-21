@@ -1,0 +1,27 @@
+# Do UFFPSim and FPSim2 return the same compounds?
+# Paths are relative to this file.
+
+dataset_metadata: metadata/chembl_35.yaml
+query_metadata: metadata/zinc_queries.yaml
+data_dir: data
+summary: results/summary.md
+
+fingerprint:
+  type: Morgan
+  params:
+    radius: 2
+
+# Fingerprint sizes and inner-clustering thresholds of the ChEMBL-35 databases in the manuscript.
+databases:
+  - fp_size: 2048
+    inner_clustering_threshold: 0.16
+
+uffpsim:
+  modes: [memory, memory-stepped, disk]
+  mol_id_max_chars: 15
+
+searches:
+  thresholds: [0.5, 0.6, 0.7]
+  top_k: [1, 10]
+
+workers: 32

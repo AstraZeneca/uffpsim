@@ -1,0 +1,8 @@
+name: ChEMBL 35 chemical representations
+url: https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/releases/chembl_35/chembl_35_chemreps.txt.gz
+file: chembl_35_chemreps.txt.gz  # relative to data_dir
+format: gzip-compressed tab-separated values with a header row
+smiles_column: canonical_smiles
+id_column: chembl_id
+# FPSim2 requires integer molecule ids, so this prefix is removed from every ChEMBL id.
+id_prefix: CHEMBL

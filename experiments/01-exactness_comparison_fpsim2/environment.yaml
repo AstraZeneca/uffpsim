@@ -1,0 +1,14 @@
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - hdf5
+  - gcc
+  - gxx
+  - rdkit
+  - numpy>=2.0
+  - scipy
+  - pybind11
+  - fpsim2
+  - pyyaml
+  - pip

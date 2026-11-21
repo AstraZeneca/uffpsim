@@ -1,0 +1,4 @@
+name: ZINC benchmark query set used throughout the manuscript
+file: ../../benchmark/01-zinc_query_selection/selected_data.txt  # relative to the experiment folder
+format: whitespace-separated text without a header row
+smiles_column: 0  # zero-based column index
