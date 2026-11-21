@@ -4,6 +4,7 @@
  */
 
 #include <iostream>
+#include <cmath>
 #include <cstdint>
 #include <map>
 #include <vector>
@@ -18,7 +19,18 @@ struct FileNotFoundException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-#define TanimotoCoeff(common, query, target, lookup_table) common*lookup_table[query+target-common]
+// Correctly rounded division, so that a similarity exactly equal to the threshold is a hit.
+inline float TanimotoCoeff(uint64_t common, uint64_t query, uint64_t target) {
+    return (float) common / (float) (query + target - common);
+}
+
+// Smallest number of shared bits c with c / maxPopCount >= threshold in the same float arithmetic as
+// TanimotoCoeff, so that this bound never prunes a fingerprint that TanimotoCoeff would accept.
+inline uint64_t minCommonPopCount(float threshold, int maxPopCount) {
+    uint64_t c = (uint64_t) std::ceil((double) threshold * maxPopCount);
+    while (c > 0 && (float) (c - 1) / (float) maxPopCount >= threshold) c--;
+    return c;
+}
 
 inline void maybe_mark_batch_query_done(utils::dt_batch_query_data *query, float maxScore, int limits) {
     if (query->done || query->max_coeff < maxScore || query->results_size < limits) return;
@@ -132,7 +144,6 @@ class FPSearchEngine {
         int _molIdOffset;
         int _CFPPopCountIndex;
         int _fpEndIndex;
-        std::vector<float> _div_lookup_table;
 
         FingerprintStore *_fpStore; // pointer to the fingerprint store
 
